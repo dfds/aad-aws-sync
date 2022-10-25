@@ -13,10 +13,20 @@ import (
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 
 func main() {
-	SyncK8s()
+	//SyncCapSvcToAzure()
+	//SyncAzureToAws()
+	SyncAwsToK8s()
 }
 
-func SyncK8s() {
+func SyncCapSvcToAzure() {
+	panic("TODO")
+}
+
+func SyncAzureToAws() {
+	panic("TODO")
+}
+
+func SyncAwsToK8s() {
 	testData := util.LoadTestData()
 
 	resp := aws.GetSsoRoles(testData.AwsAccounts)
