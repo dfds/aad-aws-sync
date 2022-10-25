@@ -39,12 +39,32 @@ type LoadRoleMapResponse struct {
 	ConfigMap *v1.ConfigMap
 }
 
+func (l *LoadRoleMapResponse) GetMappingByArn(val string) *RoleMapping {
+	for _, m := range l.Mappings {
+		if val == m.RoleARN {
+			return m
+		}
+	}
+
+	return nil
+}
+
 func (r *RoleMapping) ManagedByThis() bool {
 	if r.ManagedBy == "aad-aws-sync" {
 		return true
 	} else {
 		return false
 	}
+}
+
+func (r *RoleMapping) ContainsGroup(val string) bool {
+	for _, r := range r.Groups {
+		if val == r {
+			return true
+		}
+	}
+
+	return false
 }
 
 func LoadAwsAuthMapRoles() (*LoadRoleMapResponse, error) {
