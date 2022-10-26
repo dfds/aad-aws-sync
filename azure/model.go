@@ -40,3 +40,21 @@ type GroupsListResponse struct {
 		OnPremisesProvisioningErrors  []interface{} `json:"onPremisesProvisioningErrors"`
 	} `json:"value"`
 }
+
+type GroupMembers struct {
+	OdataContext string `json:"@odata.context"`
+	Value        []struct {
+		OdataType         string        `json:"@odata.type"`
+		ID                string        `json:"id"`
+		BusinessPhones    []interface{} `json:"businessPhones"`
+		DisplayName       string        `json:"displayName"`
+		GivenName         string        `json:"givenName"`
+		JobTitle          string        `json:"jobTitle"`
+		Mail              string        `json:"mail"`
+		MobilePhone       string        `json:"mobilePhone"`
+		OfficeLocation    interface{}   `json:"officeLocation"`
+		PreferredLanguage interface{}   `json:"preferredLanguage"`
+		Surname           string        `json:"surname"`
+		UserPrincipalName string        `json:"userPrincipalName"`
+	} `json:"value"`
+}

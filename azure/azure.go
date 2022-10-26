@@ -48,7 +48,7 @@ func (b *BearerToken) IsExpired() bool {
 func (c *Client) refreshAuth() {
 	if c.token != nil {
 		if !c.token.IsExpired() {
-			fmt.Println("Token has not expired, reusing token from cache")
+			//fmt.Println("Token has not expired, reusing token from cache")
 			return
 		}
 	}
@@ -121,6 +121,33 @@ func (c *Client) GetGroups() (*GroupsListResponse, error) {
 	}
 
 	var payload *GroupsListResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GroupMembers
 
 	err = json.Unmarshal(rawData, &payload)
 	if err != nil {

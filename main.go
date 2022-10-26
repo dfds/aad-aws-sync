@@ -38,6 +38,14 @@ func SyncAzureToAws() {
 
 	for _, group := range groups.Value {
 		fmt.Println(group.DisplayName)
+		members, err := client.GetGroupMembers(group.ID)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _, member := range members.Value {
+			fmt.Printf("  %s\n", member.ID)
+		}
 	}
 }
 
