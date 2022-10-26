@@ -8,6 +8,11 @@ import (
 )
 
 type TestData struct {
+	Azure struct {
+		TenantId     string `json:"tenantId"`
+		ClientId     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+	} `json:"azure"`
 	AwsAccounts []aws.SsoRoleMapping `json:"awsAccounts"`
 }
 
