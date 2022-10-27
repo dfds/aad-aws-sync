@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go.dfds.cloud/aad-aws-sync/aws"
 	"go.dfds.cloud/aad-aws-sync/azure"
+	"go.dfds.cloud/aad-aws-sync/capsvc"
 	"go.dfds.cloud/aad-aws-sync/k8s"
 	"go.dfds.cloud/aad-aws-sync/util"
 	"gopkg.in/yaml.v2"
@@ -14,22 +15,37 @@ import (
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 
 func main() {
-	//SyncCapSvcToAzure()
-	SyncAzureToAws()
+	SyncCapSvcToAzure()
+	//SyncAzureToAws()
 	//SyncAwsToK8s()
 }
 
 func SyncCapSvcToAzure() {
-	panic("TODO")
+	testData := util.LoadTestData()
+	client := capsvc.NewCapSvcClient(testData.CapSvc.Host)
+
+	capabilities, err := client.GetCapabilities()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, capability := range capabilities.Items {
+		fmt.Println(capability.Name)
+
+		context, err := capability.GetContext()
+		if err == nil {
+			fmt.Printf("  AWS Account ID: %s\n", context.AwsAccountID)
+		}
+	}
 }
 
+// SyncAzureToAws
+//
+// Currently in an unfinished state, can at the moment:
+//   - Get groups
+//   - Get members of a group
 func SyncAzureToAws() {
 	testData := util.LoadTestData()
-	accounts := aws.GetAccounts(testData.AssumableRoles.SsoManagementArn)
-	for _, acc := range accounts {
-		fmt.Println(acc.AccountAlias)
-	}
-	panic("UNREACHABLE")
 
 	client := azure.NewAzureClient(azure.Config{
 		TenantId:     testData.Azure.TenantId,

@@ -17,6 +17,9 @@ type TestData struct {
 		ClientId     string `json:"clientId"`
 		ClientSecret string `json:"clientSecret"`
 	} `json:"azure"`
+	CapSvc struct {
+		Host string `json:"host"`
+	}
 	AwsAccounts []aws.SsoRoleMapping `json:"awsAccounts"`
 }
 
