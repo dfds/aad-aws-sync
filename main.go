@@ -25,6 +25,12 @@ func SyncCapSvcToAzure() {
 
 func SyncAzureToAws() {
 	testData := util.LoadTestData()
+	accounts := aws.GetAccounts(testData.AssumableRoles.SsoManagementArn)
+	for _, acc := range accounts {
+		fmt.Println(acc.AccountAlias)
+	}
+	panic("UNREACHABLE")
+
 	client := azure.NewAzureClient(azure.Config{
 		TenantId:     testData.Azure.TenantId,
 		ClientId:     testData.Azure.ClientId,
@@ -44,15 +50,17 @@ func SyncAzureToAws() {
 		}
 
 		for _, member := range members.Value {
-			fmt.Printf("  %s\n", member.ID)
+			fmt.Printf("  %s\n", member.DisplayName)
+			fmt.Printf("  %s\n\n", member.UserPrincipalName)
 		}
 	}
+
 }
 
 func SyncAwsToK8s() {
 	testData := util.LoadTestData()
 
-	resp := aws.GetSsoRoles(testData.AwsAccounts)
+	resp := aws.GetSsoRoles(testData.AwsAccounts, testData.AssumableRoles.CapabilityAccountRoleName)
 	for _, acc := range resp {
 		fmt.Printf("AWS Account: %s\nSSO role name: %s\nSSO role arn: %s\n", acc.AccountAlias, acc.RoleName, acc.RoleArn)
 	}

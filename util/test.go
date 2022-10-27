@@ -8,6 +8,10 @@ import (
 )
 
 type TestData struct {
+	AssumableRoles struct {
+		SsoManagementArn          string `json:"ssoManagementArn"`
+		CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
+	} `json:"assumableRoles"`
 	Azure struct {
 		TenantId     string `json:"tenantId"`
 		ClientId     string `json:"clientId"`

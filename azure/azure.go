@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"k8s.io/utils/env"
 	"log"
 	"net/http"
 	"net/url"
@@ -46,6 +47,12 @@ func (b *BearerToken) IsExpired() bool {
 }
 
 func (c *Client) refreshAuth() {
+	envToken := env.GetString("AAS_AZURE_TOKEN", "")
+	if envToken != "" {
+		c.token = &BearerToken{token: envToken}
+		return
+	}
+
 	if c.token != nil {
 		if !c.token.IsExpired() {
 			//fmt.Println("Token has not expired, reusing token from cache")
