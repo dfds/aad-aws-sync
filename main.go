@@ -13,10 +13,11 @@ import (
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
+const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
 func main() {
-	SyncCapSvcToAzure()
-	//SyncAzureToAws()
+	//SyncCapSvcToAzure()
+	SyncAzureToAws()
 	//SyncAwsToK8s()
 }
 
@@ -24,7 +25,6 @@ func SyncCapSvcToAzure() {
 	testData := util.LoadTestData()
 	groupsInAzure := make(map[string]*azure.Group)
 	capabilitiesByRootId := make(map[string]*capsvc.GetCapabilitiesResponseContextCapability)
-	capabilityGroupPrefix := "CI_SSU_Cap -"
 	client := capsvc.NewCapSvcClient(testData.CapSvc.Host)
 
 	capabilities, err := client.GetCapabilities()
@@ -83,7 +83,7 @@ func SyncCapSvcToAzure() {
 	}
 
 	for rootId, capability := range capabilitiesByRootId {
-		azureGroupName := fmt.Sprintf("%s %s", capabilityGroupPrefix, rootId)
+		azureGroupName := fmt.Sprintf("%s %s", CAPABILITY_GROUP_PREFIX, rootId)
 		var azureGroup *azure.Group
 
 		// Check if Capability has a group in Azure AD, if it doesn't create it
@@ -141,28 +141,56 @@ func SyncCapSvcToAzure() {
 func SyncAzureToAws() {
 	testData := util.LoadTestData()
 
-	client := azure.NewAzureClient(azure.Config{
+	azClient := azure.NewAzureClient(azure.Config{
 		TenantId:     testData.Azure.TenantId,
 		ClientId:     testData.Azure.ClientId,
 		ClientSecret: testData.Azure.ClientSecret,
 	})
 
-	groups, err := client.GetGroups()
+	appRoles, err := azClient.GetApplicationRoles(testData.Azure.ApplicationId)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	appRoleId, err := appRoles.GetRoleId("User")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	appAssignments, err := azClient.GetAssignmentsForApplication(testData.Azure.ApplicationObjectId)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	groups, err := azClient.GetGroups(CAPABILITY_GROUP_PREFIX)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for _, group := range groups.Value {
 		fmt.Println(group.DisplayName)
-		members, err := client.GetGroupMembers(group.ID)
-		if err != nil {
-			log.Fatal(err)
+
+		if !appAssignments.ContainsGroup(group.DisplayName) {
+			fmt.Printf("Group %s has not been assigned to application yet, assigning.\n", group.DisplayName)
+			_, err := azClient.AssignGroupToApplication(testData.Azure.ApplicationObjectId, group.ID, appRoleId)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
-		for _, member := range members.Value {
-			fmt.Printf("  %s\n", member.DisplayName)
-			fmt.Printf("  %s\n\n", member.UserPrincipalName)
-		}
+		// Can remove assignments again
+		//else {
+		//	assignment := appAssignments.GetAssignmentByGroupName(group.DisplayName)
+		//	if assignment == nil {
+		//		log.Fatal(err)
+		//	}
+		//
+		//	err = azClient.UnassignGroupFromApplication(group.ID, assignment.ID)
+		//	if err != nil {
+		//		log.Fatal(err)
+		//	}
+		//}
+
 	}
 
 }

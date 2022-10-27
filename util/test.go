@@ -13,9 +13,11 @@ type TestData struct {
 		CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
 	} `json:"assumableRoles"`
 	Azure struct {
-		TenantId     string `json:"tenantId"`
-		ClientId     string `json:"clientId"`
-		ClientSecret string `json:"clientSecret"`
+		TenantId            string `json:"tenantId"`
+		ClientId            string `json:"clientId"`
+		ClientSecret        string `json:"clientSecret"`
+		ApplicationId       string `json:"applicationId"`
+		ApplicationObjectId string `json:"applicationObjectId"`
 	} `json:"azure"`
 	CapSvc struct {
 		Host string `json:"host"`

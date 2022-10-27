@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"errors"
 	"strings"
 	"time"
 )
@@ -179,6 +180,93 @@ type GetAdministrativeUnitMembersResponseUnit struct {
 	Theme                         interface{}   `json:"theme"`
 	Visibility                    interface{}   `json:"visibility"`
 	OnPremisesProvisioningErrors  []interface{} `json:"onPremisesProvisioningErrors"`
+}
+
+type GetApplicationRolesResponse struct {
+	OdataContext string `json:"@odata.context"`
+	Value        []struct {
+		DisplayName string `json:"displayName"`
+		AppID       string `json:"appId"`
+		AppRoles    []struct {
+			AllowedMemberTypes []string    `json:"allowedMemberTypes"`
+			Description        string      `json:"description"`
+			DisplayName        string      `json:"displayName"`
+			ID                 string      `json:"id"`
+			IsEnabled          bool        `json:"isEnabled"`
+			Origin             string      `json:"origin"`
+			Value              interface{} `json:"value"`
+		} `json:"appRoles"`
+	} `json:"value"`
+}
+
+func (g *GetApplicationRolesResponse) GetRoleId(name string) (string, error) {
+	if len(g.Value) != 1 {
+		return "", errors.New("too many application entries returned, only expected one")
+	}
+	app := g.Value[0]
+	for _, role := range app.AppRoles {
+		if role.DisplayName == name {
+			return role.ID, nil
+		}
+	}
+
+	return "", errors.New("application role not found")
+}
+
+type AssignGroupToApplicationRequest struct {
+	PrincipalID string `json:"principalId"`
+	ResourceID  string `json:"resourceId"`
+	AppRoleID   string `json:"appRoleId"`
+}
+
+type AssignGroupToApplicationResponse struct {
+	OdataContext         string      `json:"@odata.context"`
+	ID                   string      `json:"id"`
+	DeletedDateTime      interface{} `json:"deletedDateTime"`
+	AppRoleID            string      `json:"appRoleId"`
+	CreatedDateTime      time.Time   `json:"createdDateTime"`
+	PrincipalDisplayName string      `json:"principalDisplayName"`
+	PrincipalID          string      `json:"principalId"`
+	PrincipalType        string      `json:"principalType"`
+	ResourceDisplayName  string      `json:"resourceDisplayName"`
+	ResourceID           string      `json:"resourceId"`
+}
+
+type GetAssignmentsForApplicationResponse struct {
+	OdataContext  string                                            `json:"@odata.context"`
+	OdataNextLink string                                            `json:"@odata.nextLink,omitempty"`
+	Value         []*GetAssignmentsForApplicationResponseAssignment `json:"value"`
+}
+
+type GetAssignmentsForApplicationResponseAssignment struct {
+	ID                   string    `json:"id"`
+	CreationTimestamp    time.Time `json:"creationTimestamp"`
+	AppRoleID            string    `json:"appRoleId"`
+	PrincipalDisplayName string    `json:"principalDisplayName"`
+	PrincipalID          string    `json:"principalId"`
+	PrincipalType        string    `json:"principalType"`
+	ResourceDisplayName  string    `json:"resourceDisplayName"`
+	ResourceID           string    `json:"resourceId"`
+}
+
+func (g *GetAssignmentsForApplicationResponse) ContainsGroup(name string) bool {
+	for _, assignment := range g.Value {
+		if assignment.PrincipalDisplayName == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (g *GetAssignmentsForApplicationResponse) GetAssignmentByGroupName(name string) *GetAssignmentsForApplicationResponseAssignment {
+	for _, assignment := range g.Value {
+		if assignment.PrincipalDisplayName == name {
+			return assignment
+		}
+	}
+
+	return nil
 }
 
 type Group struct {

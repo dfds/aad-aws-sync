@@ -107,7 +107,7 @@ func (c *Client) prepareHttpRequest(h *http.Request) {
 	h.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token.token))
 }
 
-func (c *Client) GetGroups() (*GroupsListResponse, error) {
+func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 	req, err := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/groups", nil)
 	if err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func (c *Client) GetGroups() (*GroupsListResponse, error) {
 	c.prepareHttpRequest(req)
 
 	urlQueryValues := req.URL.Query()
-	urlQueryValues.Set("$filter", "startswith(displayName,'Cloud Infrastructure - SSU - Capability')")
+	urlQueryValues.Set("$filter", fmt.Sprintf("startswith(displayName,'%s')", prefix))
 	req.URL.RawQuery = urlQueryValues.Encode()
 
 	resp, err := c.httpClient.Do(req)
@@ -365,6 +365,167 @@ func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 	}
 
 	return payload, nil
+}
+
+func (c *Client) GetApplicationRoles(appId string) (*GetApplicationRolesResponse, error) {
+	req, err := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/applications", nil)
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+
+	urlQueryValues := req.URL.Query()
+	urlQueryValues.Set("$filter", fmt.Sprintf("appId eq '%s'", appId))
+	urlQueryValues.Set("$select", "displayName, appId, appRoles")
+	req.URL.RawQuery = urlQueryValues.Encode()
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetApplicationRolesResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmentsForApplicationResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/beta/servicePrincipals/%s/appRoleAssignedTo", appObjectId), nil)
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetAssignmentsForApplicationResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	nextLink := payload.OdataNextLink
+
+	for nextLink != "" {
+		fmt.Println("Fetching additional assignments")
+		req, err := http.NewRequest("GET", nextLink, nil)
+		if err != nil {
+			return nil, err
+		}
+		c.prepareHttpRequest(req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		rawData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var buffer *GetAssignmentsForApplicationResponse
+
+		err = json.Unmarshal(rawData, &buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		nextLink = buffer.OdataNextLink
+
+		payload.Value = append(payload.Value, buffer.Value...)
+	}
+
+	return payload, nil
+}
+
+func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, roleId string) (*AssignGroupToApplicationResponse, error) {
+	requestPayload := AssignGroupToApplicationRequest{
+		PrincipalID: groupId,
+		ResourceID:  appObjectId,
+		AppRoleID:   roleId,
+	}
+
+	serialised, err := json.Marshal(requestPayload)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/appRoleAssignments", groupId), bytes.NewBuffer([]byte(serialised)))
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 201 {
+		log.Println(string(rawData))
+		log.Fatal(resp.StatusCode)
+	}
+
+	var payload *AssignGroupToApplicationResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId string) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/appRoleAssignments/%s", groupId, assignmentId), nil)
+	if err != nil {
+		return nil
+	}
+	c.prepareHttpRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	if resp.StatusCode != 204 {
+		log.Println(string(rawData))
+		log.Fatal(resp.StatusCode)
+	}
+
+	return nil
 }
 
 func NewAzureClient(conf Config) *Client {
