@@ -122,15 +122,6 @@ func SyncCapSvcToAzure() {
 		// TODO: Check if member that exists in Azure AD group has been removed from the Capability, if that's the case, remove them.
 
 	}
-
-	//for name, group := range groupsInAzure {
-	//	fmt.Printf("%s || %s\n", name, group.ID)
-	//
-	//	for _, member := range group.Members {
-	//		fmt.Printf("  %s - %s\n", member.DisplayName, member.UserPrincipalName)
-	//	}
-	//}
-
 }
 
 // SyncAzureToAws
