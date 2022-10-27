@@ -1,9 +1,12 @@
 package capsvc
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 type GetCapabilitiesResponse struct {
-	Items []GetCapabilitiesResponseContextCapability `json:"items"`
+	Items []*GetCapabilitiesResponseContextCapability `json:"items"`
 }
 
 func (g *GetCapabilitiesResponseContextCapability) GetContext() (*GetCapabilitiesResponseContext, error) {
@@ -26,6 +29,16 @@ type GetCapabilitiesResponseContextCapability struct {
 		Email string `json:"email"`
 	} `json:"members"`
 	Contexts []*GetCapabilitiesResponseContext `json:"contexts,omitempty"`
+}
+
+func (g *GetCapabilitiesResponseContextCapability) HasMember(email string) bool {
+	for _, member := range g.Members {
+		if strings.ToLower(member.Email) == strings.ToLower(email) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type GetCapabilitiesResponseContext struct {

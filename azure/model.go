@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"strings"
 	"time"
 )
 
@@ -66,6 +67,57 @@ type GetAdministrativeUnitsResponse struct {
 	Value        []*GetAdministrativeUnitsResponseUnit `json:"value"`
 }
 
+type CreateAdministrativeUnitGroupRequest struct {
+	OdataType       string        `json:"@odata.type"`
+	Description     string        `json:"description"`
+	DisplayName     string        `json:"displayName"`
+	MailNickname    string        `json:"mailNickname"`
+	GroupTypes      []interface{} `json:"groupTypes"`
+	MailEnabled     bool          `json:"mailEnabled"`
+	SecurityEnabled bool          `json:"securityEnabled"`
+}
+
+type AddGroupMemberRequest struct {
+	OdataId string `json:"@odata.id"`
+}
+
+type CreateAdministrativeUnitGroupResponse struct {
+	OdataContext                  string        `json:"@odata.context"`
+	OdataType                     string        `json:"@odata.type"`
+	ID                            string        `json:"id"`
+	DeletedDateTime               interface{}   `json:"deletedDateTime"`
+	Classification                interface{}   `json:"classification"`
+	CreatedDateTime               time.Time     `json:"createdDateTime"`
+	CreationOptions               []interface{} `json:"creationOptions"`
+	Description                   string        `json:"description"`
+	DisplayName                   string        `json:"displayName"`
+	ExpirationDateTime            interface{}   `json:"expirationDateTime"`
+	GroupTypes                    []interface{} `json:"groupTypes"`
+	IsAssignableToRole            interface{}   `json:"isAssignableToRole"`
+	Mail                          interface{}   `json:"mail"`
+	MailEnabled                   bool          `json:"mailEnabled"`
+	MailNickname                  string        `json:"mailNickname"`
+	MembershipRule                interface{}   `json:"membershipRule"`
+	MembershipRuleProcessingState interface{}   `json:"membershipRuleProcessingState"`
+	OnPremisesDomainName          interface{}   `json:"onPremisesDomainName"`
+	OnPremisesLastSyncDateTime    interface{}   `json:"onPremisesLastSyncDateTime"`
+	OnPremisesNetBiosName         interface{}   `json:"onPremisesNetBiosName"`
+	OnPremisesSamAccountName      interface{}   `json:"onPremisesSamAccountName"`
+	OnPremisesSecurityIdentifier  interface{}   `json:"onPremisesSecurityIdentifier"`
+	OnPremisesSyncEnabled         interface{}   `json:"onPremisesSyncEnabled"`
+	PreferredDataLocation         interface{}   `json:"preferredDataLocation"`
+	PreferredLanguage             interface{}   `json:"preferredLanguage"`
+	ProxyAddresses                []interface{} `json:"proxyAddresses"`
+	RenewedDateTime               time.Time     `json:"renewedDateTime"`
+	ResourceBehaviorOptions       []interface{} `json:"resourceBehaviorOptions"`
+	ResourceProvisioningOptions   []interface{} `json:"resourceProvisioningOptions"`
+	SecurityEnabled               bool          `json:"securityEnabled"`
+	SecurityIdentifier            string        `json:"securityIdentifier"`
+	Theme                         interface{}   `json:"theme"`
+	Visibility                    interface{}   `json:"visibility"`
+	OnPremisesProvisioningErrors  []interface{} `json:"onPremisesProvisioningErrors"`
+}
+
 type GetAdministrativeUnitsResponseUnit struct {
 	ID                            string      `json:"id"`
 	DeletedDateTime               interface{} `json:"deletedDateTime"`
@@ -88,40 +140,65 @@ func (g *GetAdministrativeUnitsResponse) GetUnit(name string) *GetAdministrative
 }
 
 type GetAdministrativeUnitMembersResponse struct {
-	OdataContext string `json:"@odata.context"`
-	Value        []struct {
-		OdataType                     string        `json:"@odata.type"`
-		ID                            string        `json:"id"`
-		DeletedDateTime               interface{}   `json:"deletedDateTime"`
-		Classification                interface{}   `json:"classification"`
-		CreatedDateTime               time.Time     `json:"createdDateTime"`
-		CreationOptions               []interface{} `json:"creationOptions"`
-		Description                   interface{}   `json:"description"`
-		DisplayName                   string        `json:"displayName"`
-		ExpirationDateTime            interface{}   `json:"expirationDateTime"`
-		GroupTypes                    []interface{} `json:"groupTypes"`
-		IsAssignableToRole            interface{}   `json:"isAssignableToRole"`
-		Mail                          interface{}   `json:"mail"`
-		MailEnabled                   bool          `json:"mailEnabled"`
-		MailNickname                  string        `json:"mailNickname"`
-		MembershipRule                interface{}   `json:"membershipRule"`
-		MembershipRuleProcessingState interface{}   `json:"membershipRuleProcessingState"`
-		OnPremisesDomainName          interface{}   `json:"onPremisesDomainName"`
-		OnPremisesLastSyncDateTime    interface{}   `json:"onPremisesLastSyncDateTime"`
-		OnPremisesNetBiosName         interface{}   `json:"onPremisesNetBiosName"`
-		OnPremisesSamAccountName      interface{}   `json:"onPremisesSamAccountName"`
-		OnPremisesSecurityIdentifier  interface{}   `json:"onPremisesSecurityIdentifier"`
-		OnPremisesSyncEnabled         interface{}   `json:"onPremisesSyncEnabled"`
-		PreferredDataLocation         interface{}   `json:"preferredDataLocation"`
-		PreferredLanguage             interface{}   `json:"preferredLanguage"`
-		ProxyAddresses                []interface{} `json:"proxyAddresses"`
-		RenewedDateTime               time.Time     `json:"renewedDateTime"`
-		ResourceBehaviorOptions       []interface{} `json:"resourceBehaviorOptions"`
-		ResourceProvisioningOptions   []interface{} `json:"resourceProvisioningOptions"`
-		SecurityEnabled               bool          `json:"securityEnabled"`
-		SecurityIdentifier            string        `json:"securityIdentifier"`
-		Theme                         interface{}   `json:"theme"`
-		Visibility                    interface{}   `json:"visibility"`
-		OnPremisesProvisioningErrors  []interface{} `json:"onPremisesProvisioningErrors"`
-	} `json:"value"`
+	OdataContext  string                                     `json:"@odata.context"`
+	OdataNextLink string                                     `json:"@odata.nextLink,omitempty"`
+	Value         []GetAdministrativeUnitMembersResponseUnit `json:"value"`
+}
+
+type GetAdministrativeUnitMembersResponseUnit struct {
+	OdataType                     string        `json:"@odata.type"`
+	ID                            string        `json:"id"`
+	DeletedDateTime               interface{}   `json:"deletedDateTime"`
+	Classification                interface{}   `json:"classification"`
+	CreatedDateTime               time.Time     `json:"createdDateTime"`
+	CreationOptions               []interface{} `json:"creationOptions"`
+	Description                   interface{}   `json:"description"`
+	DisplayName                   string        `json:"displayName"`
+	ExpirationDateTime            interface{}   `json:"expirationDateTime"`
+	GroupTypes                    []interface{} `json:"groupTypes"`
+	IsAssignableToRole            interface{}   `json:"isAssignableToRole"`
+	Mail                          interface{}   `json:"mail"`
+	MailEnabled                   bool          `json:"mailEnabled"`
+	MailNickname                  string        `json:"mailNickname"`
+	MembershipRule                interface{}   `json:"membershipRule"`
+	MembershipRuleProcessingState interface{}   `json:"membershipRuleProcessingState"`
+	OnPremisesDomainName          interface{}   `json:"onPremisesDomainName"`
+	OnPremisesLastSyncDateTime    interface{}   `json:"onPremisesLastSyncDateTime"`
+	OnPremisesNetBiosName         interface{}   `json:"onPremisesNetBiosName"`
+	OnPremisesSamAccountName      interface{}   `json:"onPremisesSamAccountName"`
+	OnPremisesSecurityIdentifier  interface{}   `json:"onPremisesSecurityIdentifier"`
+	OnPremisesSyncEnabled         interface{}   `json:"onPremisesSyncEnabled"`
+	PreferredDataLocation         interface{}   `json:"preferredDataLocation"`
+	PreferredLanguage             interface{}   `json:"preferredLanguage"`
+	ProxyAddresses                []interface{} `json:"proxyAddresses"`
+	RenewedDateTime               time.Time     `json:"renewedDateTime"`
+	ResourceBehaviorOptions       []interface{} `json:"resourceBehaviorOptions"`
+	ResourceProvisioningOptions   []interface{} `json:"resourceProvisioningOptions"`
+	SecurityEnabled               bool          `json:"securityEnabled"`
+	SecurityIdentifier            string        `json:"securityIdentifier"`
+	Theme                         interface{}   `json:"theme"`
+	Visibility                    interface{}   `json:"visibility"`
+	OnPremisesProvisioningErrors  []interface{} `json:"onPremisesProvisioningErrors"`
+}
+
+type Group struct {
+	ID          string    `json:"id"`
+	DisplayName string    `json:"displayName"`
+	Members     []*Member `json:"members"`
+}
+
+func (g *Group) HasMember(email string) bool {
+	for _, member := range g.Members {
+		if strings.ToLower(member.UserPrincipalName) == strings.ToLower(email) {
+			return true
+		}
+	}
+
+	return false
+}
+
+type Member struct {
+	ID                string `json:"id"`
+	DisplayName       string `json:"displayName"`
+	UserPrincipalName string `json:"userPrincipalName"`
 }

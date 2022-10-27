@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -168,6 +169,118 @@ func (c *Client) GetAdministrativeUnits() (*GetAdministrativeUnitsResponse, erro
 	return payload, nil
 }
 
+func (c *Client) CreateAdministrativeUnitGroup(aUnitId string, rootId string) (*CreateAdministrativeUnitGroupResponse, error) {
+	requestPayload := CreateAdministrativeUnitGroupRequest{
+		OdataType:       "#Microsoft.Graph.Group",
+		Description:     "[Automated] - aad-aws-sync",
+		DisplayName:     fmt.Sprintf("CI_SSU_Cap - %s", rootId),
+		MailNickname:    fmt.Sprintf("ci-ssu_cap_%s", rootId),
+		GroupTypes:      []interface{}{},
+		MailEnabled:     false,
+		SecurityEnabled: true,
+	}
+
+	serialised, err := json.Marshal(requestPayload)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members", aUnitId), bytes.NewBuffer([]byte(serialised)))
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 201 {
+		log.Println(string(rawData))
+		log.Fatal(resp.StatusCode)
+	}
+
+	var payload *CreateAdministrativeUnitGroupResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members/%s", aUnitId, groupId), nil)
+	if err != nil {
+		return err
+	}
+	c.prepareHttpRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 204 {
+		log.Println(string(rawData))
+		log.Fatal(resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *Client) AddGroupMember(groupId string, upn string) error {
+	requestPayload := AddGroupMemberRequest{
+		OdataId: fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", upn),
+	}
+
+	serialised, err := json.Marshal(requestPayload)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members/$ref", groupId), bytes.NewBuffer([]byte(serialised)))
+	if err != nil {
+		return err
+	}
+	c.prepareHttpRequest(req)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 204 {
+		if resp.StatusCode == 404 {
+			log.Printf("User %s not found, skipping.", upn)
+			return nil
+		}
+
+		if resp.StatusCode == 403 {
+			log.Println("Response returned with unexpected 403. Skipping entry.")
+			return nil
+		}
+
+		log.Fatal(resp.StatusCode)
+	}
+
+	return nil
+}
+
 func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnitMembersResponse, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members", id), nil)
 	if err != nil {
@@ -190,6 +303,38 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 	err = json.Unmarshal(rawData, &payload)
 	if err != nil {
 		return nil, err
+	}
+
+	nextLink := payload.OdataNextLink
+
+	for nextLink != "" {
+		fmt.Println("Fetching additional groups")
+		req, err := http.NewRequest("GET", nextLink, nil)
+		if err != nil {
+			return nil, err
+		}
+		c.prepareHttpRequest(req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		rawData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var buffer *GetAdministrativeUnitMembersResponse
+
+		err = json.Unmarshal(rawData, &buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		nextLink = buffer.OdataNextLink
+
+		payload.Value = append(payload.Value, buffer.Value...)
 	}
 
 	return payload, nil

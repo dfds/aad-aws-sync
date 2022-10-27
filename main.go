@@ -22,20 +22,14 @@ func main() {
 
 func SyncCapSvcToAzure() {
 	testData := util.LoadTestData()
+	groupsInAzure := make(map[string]*azure.Group)
+	capabilitiesByRootId := make(map[string]*capsvc.GetCapabilitiesResponseContextCapability)
+	capabilityGroupPrefix := "CI_SSU_Cap -"
 	client := capsvc.NewCapSvcClient(testData.CapSvc.Host)
 
 	capabilities, err := client.GetCapabilities()
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	for _, capability := range capabilities.Items {
-		fmt.Println(capability.Name)
-
-		context, err := capability.GetContext()
-		if err == nil {
-			fmt.Printf("  AWS Account ID: %s\n", context.AwsAccountID)
-		}
 	}
 
 	azureClient := azure.NewAzureClient(azure.Config{
@@ -59,18 +53,83 @@ func SyncCapSvcToAzure() {
 		log.Fatal(err)
 	}
 
-	fmt.Println(aUnit.DisplayName)
+	for _, capability := range capabilities.Items {
+		_, err := capability.GetContext()
+		if err == nil {
+			capabilitiesByRootId[capability.RootID] = capability
+		}
+	}
+
 	for _, member := range aUnitMembers.Value {
-		fmt.Printf("  %s\n", member.DisplayName)
+		group := &azure.Group{
+			DisplayName: member.DisplayName,
+			ID:          member.ID,
+			Members:     []*azure.Member{},
+		}
 		groupMembers, err := azureClient.GetGroupMembers(member.ID)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		for _, groupMember := range groupMembers.Value {
-			fmt.Printf("    %s - %s\n", groupMember.DisplayName, groupMember.UserPrincipalName)
+			group.Members = append(group.Members, &azure.Member{
+				ID:                groupMember.ID,
+				DisplayName:       groupMember.DisplayName,
+				UserPrincipalName: groupMember.UserPrincipalName,
+			})
 		}
+
+		groupsInAzure[group.DisplayName] = group
 	}
+
+	for rootId, capability := range capabilitiesByRootId {
+		azureGroupName := fmt.Sprintf("%s %s", capabilityGroupPrefix, rootId)
+		var azureGroup *azure.Group
+
+		// Check if Capability has a group in Azure AD, if it doesn't create it
+		if resp, ok := groupsInAzure[azureGroupName]; !ok {
+			fmt.Printf("Capability %s doesn't exist in Azure, creating.\n", rootId)
+			resp, err := azureClient.CreateAdministrativeUnitGroup(aUnit.ID, rootId)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			azureGroup = &azure.Group{ID: resp.ID, DisplayName: resp.DisplayName}
+			//continue
+		} else {
+			azureGroup = resp
+			//fmt.Printf("Deleting group %s\n", azureGroup.DisplayName)
+			//err = azureClient.DeleteAdministrativeUnitGroup(aUnit.ID, azureGroup.ID)
+			//if err != nil {
+			//	log.Fatal(err)
+			//}
+			//continue
+		}
+
+		// Add missing members in Azure AD group
+		if azureGroup != nil {
+			for _, capMember := range capability.Members {
+				if !azureGroup.HasMember(capMember.Email) {
+					fmt.Printf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email)
+					err = azureClient.AddGroupMember(azureGroup.ID, capMember.Email)
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
+			}
+		}
+
+		// TODO: Check if member that exists in Azure AD group has been removed from the Capability, if that's the case, remove them.
+
+	}
+
+	//for name, group := range groupsInAzure {
+	//	fmt.Printf("%s || %s\n", name, group.ID)
+	//
+	//	for _, member := range group.Members {
+	//		fmt.Printf("  %s - %s\n", member.DisplayName, member.UserPrincipalName)
+	//	}
+	//}
 
 }
 
