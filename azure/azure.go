@@ -137,6 +137,64 @@ func (c *Client) GetGroups() (*GroupsListResponse, error) {
 	return payload, nil
 }
 
+func (c *Client) GetAdministrativeUnits() (*GetAdministrativeUnitsResponse, error) {
+	req, err := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/directory/administrativeUnits", nil)
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+
+	urlQueryValues := req.URL.Query()
+	urlQueryValues.Set("$filter", "startswith(displayName,'Team - Cloud Engineering')")
+	req.URL.RawQuery = urlQueryValues.Encode()
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetAdministrativeUnitsResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnitMembersResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	c.prepareHttpRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetAdministrativeUnitMembersResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
 func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members", id), nil)
 	if err != nil {

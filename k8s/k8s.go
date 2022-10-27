@@ -2,8 +2,6 @@ package k8s
 
 import (
 	"context"
-	"fmt"
-	"go.dfds.cloud/aad-aws-sync/aws"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,18 +113,4 @@ func getK8sClient() (*kubernetes.Clientset, error) {
 	}
 
 	return client, nil
-}
-
-func GenerateAwsAuthMapRolesObject(entries map[string]aws.SsoRoleMapping) {
-	for _, entry := range entries {
-		obj := fmt.Sprintf(`
-    - rolearn: arn:aws:iam::%s:role/%s
-      username: %s:sso-{{SessionName}}
-      groups:
-        - DFDS-ReadOnly
-        - %s`, entry.AccountId, entry.RoleName, entry.RootId, entry.RootId)
-
-		fmt.Print(obj)
-	}
-	fmt.Print("\n")
 }

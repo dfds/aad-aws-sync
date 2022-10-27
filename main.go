@@ -37,6 +37,41 @@ func SyncCapSvcToAzure() {
 			fmt.Printf("  AWS Account ID: %s\n", context.AwsAccountID)
 		}
 	}
+
+	azureClient := azure.NewAzureClient(azure.Config{
+		TenantId:     testData.Azure.TenantId,
+		ClientId:     testData.Azure.ClientId,
+		ClientSecret: testData.Azure.ClientSecret,
+	})
+
+	aUnits, err := azureClient.GetAdministrativeUnits()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	aUnit := aUnits.GetUnit("Team - Cloud Engineering - Self service")
+	if aUnit == nil {
+		log.Fatal("Unable to find administrative unit")
+	}
+
+	aUnitMembers, err := azureClient.GetAdministrativeUnitMembers(aUnit.ID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(aUnit.DisplayName)
+	for _, member := range aUnitMembers.Value {
+		fmt.Printf("  %s\n", member.DisplayName)
+		groupMembers, err := azureClient.GetGroupMembers(member.ID)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for _, groupMember := range groupMembers.Value {
+			fmt.Printf("    %s - %s\n", groupMember.DisplayName, groupMember.UserPrincipalName)
+		}
+	}
+
 }
 
 // SyncAzureToAws
