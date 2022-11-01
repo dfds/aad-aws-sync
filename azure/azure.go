@@ -135,6 +135,38 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 		return nil, err
 	}
 
+	nextLink := payload.OdataNextLink
+
+	for nextLink != "" {
+		fmt.Println("Fetching additional groups")
+		req, err := http.NewRequest("GET", nextLink, nil)
+		if err != nil {
+			return nil, err
+		}
+		c.prepareHttpRequest(req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		rawData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var buffer *GroupsListResponse
+
+		err = json.Unmarshal(rawData, &buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		nextLink = buffer.OdataNextLink
+
+		payload.Value = append(payload.Value, buffer.Value...)
+	}
+
 	return payload, nil
 }
 

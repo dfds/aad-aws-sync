@@ -168,20 +168,6 @@ func SyncAzureToAws() {
 				log.Fatal(err)
 			}
 		}
-
-		// Can remove assignments again
-		//else {
-		//	assignment := appAssignments.GetAssignmentByGroupName(group.DisplayName)
-		//	if assignment == nil {
-		//		log.Fatal(err)
-		//	}
-		//
-		//	err = azClient.UnassignGroupFromApplication(group.ID, assignment.ID)
-		//	if err != nil {
-		//		log.Fatal(err)
-		//	}
-		//}
-
 	}
 
 }
