@@ -12,6 +12,12 @@ type TestData struct {
 		SsoManagementArn          string `json:"ssoManagementArn"`
 		CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
 	} `json:"assumableRoles"`
+	Aws struct {
+		IdentityStoreArn           string `json:"identityStoreArn"`
+		SsoInstanceArn             string `json:"ssoInstanceArn"`
+		CapabilityPermissionSetArn string `json:"capabilityPermissionSetArn"`
+		AccountNamePrefix          string `json:"accountNamePrefix"`
+	}
 	Azure struct {
 		TenantId            string `json:"tenantId"`
 		ClientId            string `json:"clientId"`
