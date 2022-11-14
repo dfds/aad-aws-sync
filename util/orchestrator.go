@@ -3,6 +3,8 @@ package util
 import (
 	"context"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -10,6 +12,11 @@ import (
 const CapabilityServiceToAzureAdName = "capSvcToAad"
 const AzureAdToAwsName = "aadToAws"
 const AwsToKubernetesName = "awsToK8s"
+
+var currentJobsGauge prometheus.Gauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "jobs_running",
+	Help: "Current jobs that are running",
+})
 
 // Orchestrator
 // Used for managing long-lived fully fledged sync jobs
@@ -64,7 +71,9 @@ func (o *Orchestrator) Init() {
 		status:  o.capSvcToAadSyncStatus,
 		context: context.TODO(),
 		handler: func() {
-
+			go func() {
+				currentJobsGauge.Dec()
+			}()
 		},
 	}
 
@@ -89,7 +98,7 @@ func (o *Orchestrator) Init() {
 	for jobName, job := range o.jobs {
 		Logger.Info(fmt.Sprintf("Starting %s job", jobName), zap.String("jobName", jobName))
 		job.Run()
-		//job.Run() // Run twice to check if mutex is working as intended
+		job.Run() // Run twice to check if mutex is working as intended
 	}
 }
 
@@ -103,7 +112,9 @@ type Job struct {
 func (j *Job) Run() {
 	if j.status.InProgress() {
 		Logger.Error("Can't start Job because Job is already in progress.", zap.String("jobName", j.name))
+		return
 	}
+	currentJobsGauge.Inc()
 	j.status.SetStatus(true)
-
+	j.handler() // TODO: Put in a separate goroutine
 }
