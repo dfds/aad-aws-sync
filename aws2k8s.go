@@ -16,6 +16,7 @@ const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 func main() {
 	testData := util.LoadTestData()
 
+	// TODO: Get AWS accounts via API instead of relying on local test data
 	resp := aws.GetSsoRoles(testData.AwsAccounts, testData.AssumableRoles.CapabilityAccountRoleName)
 	for _, acc := range resp {
 		fmt.Printf("AWS Account: %s\nSSO role name: %s\nSSO role arn: %s\n", acc.AccountAlias, acc.RoleName, acc.RoleArn)
