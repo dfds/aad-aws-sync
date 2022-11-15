@@ -13,6 +13,7 @@ const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 func main() {
 	util.InitializeLogger()
 	defer util.Logger.Sync()
+	http.Handle("/metrics", promhttp.Handler())
 
 	go func() {
 		time.Sleep(time.Second * 2)
@@ -21,6 +22,5 @@ func main() {
 		orc.Init()
 	}()
 
-	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(":8080", nil)
 }

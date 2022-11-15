@@ -14,8 +14,9 @@ const AzureAdToAwsName = "aadToAws"
 const AwsToKubernetesName = "awsToK8s"
 
 var currentJobsGauge prometheus.Gauge = promauto.NewGauge(prometheus.GaugeOpts{
-	Name: "jobs_running",
-	Help: "Current jobs that are running",
+	Name:      "jobs_running",
+	Help:      "Current jobs that are running",
+	Namespace: "aad_aws_sync",
 })
 
 // Orchestrator
