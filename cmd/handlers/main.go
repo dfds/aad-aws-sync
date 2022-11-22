@@ -141,7 +141,7 @@ func main() {
 		log.Println("fetch messages")
 		m, err := r.FetchMessage(ctx)
 		if err == io.EOF {
-			log.Println("read all messages")
+			log.Println("connection closed")
 			break
 		} else if err != nil {
 			log.Fatal("error fetching message:", err)
