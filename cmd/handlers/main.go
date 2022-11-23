@@ -1,7 +1,5 @@
 package main
 
-// TODO organize code into packages
-
 import (
 	"context"
 	"encoding/json"
@@ -12,39 +10,24 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.dfds.cloud/aad-aws-sync/internal/azuretest"
 	"go.dfds.cloud/aad-aws-sync/internal/handlers"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/segmentio/kafka-go"
 )
-
-// MockAzureClient is used to mock the AzureClient interface.
-type MockAzureClient struct {
-	createGroupCalls []string
-	createGroupMock  func(string) (string, error)
-}
-
-func (c *MockAzureClient) CreateGroup(name string) (string, error) {
-	c.createGroupCalls = append(c.createGroupCalls, name)
-	return c.createGroupMock(name)
-}
-
-type MockKafkaProducer struct {
-	writeMessagesCalls [][]kafka.Message
-	writeMessagesMock  func(context.Context, ...kafka.Message) error
-}
-
-func (p *MockKafkaProducer) WriteMessages(ctx context.Context, msgs ...kafka.Message) error {
-	p.writeMessagesCalls = append(p.writeMessagesCalls, msgs)
-	return p.writeMessagesMock(ctx, msgs...)
-}
 
 func main() {
 	// Process configurations
+	var authConfig kafkautil.AuthSASLPlainConfig
+	err := envconfig.Process("sasl_plain", &authConfig)
+	if err != nil {
+		log.Fatal("failed to process auth configurations:", err)
+	}
+
 	var consumerConfig kafkautil.ConsumerConfig
-	err := envconfig.Process("consumer", &consumerConfig)
+	err = envconfig.Process("consumer", &consumerConfig)
 	if err != nil {
 		log.Fatal("failed to process consumer configurations:", err)
 	}
@@ -53,12 +36,6 @@ func main() {
 	err = envconfig.Process("producer", &producerConfig)
 	if err != nil {
 		log.Fatal("failed to process producer configurations:", err)
-	}
-
-	var authConfig kafkautil.AuthSASLPlainConfig
-	err = envconfig.Process("sasl_plain", &producerConfig)
-	if err != nil {
-		log.Fatal("failed to process auth configurations:", err)
 	}
 
 	// Iniate the dialer
@@ -90,8 +67,8 @@ func main() {
 	}()
 
 	// Mock the Azure Client
-	azureClient := &MockAzureClient{
-		createGroupMock: func(name string) (string, error) { return "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
+	azureClient := &azuretest.MockAzureClient{
+		CreateGroupMock: func(name string) (string, error) { return "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
 	}
 
 	// Initiate handlers context
@@ -126,7 +103,7 @@ func main() {
 			log.Fatal("error handling capability created message", err)
 		}
 
-		log.Println("dump create group calls on mock:", azureClient.createGroupCalls)
+		log.Println("dump create group calls on mock:", azureClient.CreateGroupCalls)
 
 		// Commit offset to the consumer group
 		if err := consumer.CommitMessages(ctx, m); err != nil {
