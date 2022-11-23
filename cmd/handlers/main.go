@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
+	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/protocol"
 )
 
 func main() {
@@ -38,14 +39,23 @@ func main() {
 		log.Fatal("failed to process producer configurations:", err)
 	}
 
+	var errorProducerConfig kafkautil.ProducerConfig
+	err = envconfig.Process("error_producer", &errorProducerConfig)
+	if err != nil {
+		log.Fatal("failed to process error producer configurations:", err)
+	}
+
 	// Iniate the dialer
 	dialer := kafkautil.NewDialer(authConfig)
 
 	// Initiate consumer
 	consumer := kafkautil.NewConsumer(consumerConfig, dialer)
 
-	// Initiate producer
+	// Initiate producers
 	producer := kafkautil.NewProducer(producerConfig, dialer)
+	defer producer.Close()
+	errorProducer := kafkautil.NewProducer(errorProducerConfig, dialer)
+	defer errorProducer.Close()
 
 	// Hand clean up, need to signal to the consumer group that the
 	// process is exiting so that it does not have to wait for a timeout
@@ -85,14 +95,25 @@ func main() {
 		} else if err != nil {
 			log.Fatal("error fetching message:", err)
 		}
-		fmt.Printf("message at topic/partition/offset %v/%v/%v: %s = %s\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
-		log.Println("message headers", m.Headers)
+		log.Printf("message at topic/partition/offset %v/%v/%v: %s = %s : %v\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value), m.Headers)
 
 		var msg kafkamsgs.CapabilityCreatedMessage
 		err = json.Unmarshal(m.Value, &msg)
 		if err != nil {
-			// TODO forward the message to the dead letter queue
-			log.Fatal("error unmarshaling message", err)
+			// Write the message along with the error to the dead letter queue.
+			err = errorProducer.WriteMessages(ctx, kafka.Message{
+				Key:   m.Key,
+				Value: m.Value,
+				Headers: append(m.Headers, protocol.Header{
+					Key:   kafkamsgs.HeaderKeyError,
+					Value: []byte(err.Error()),
+				}),
+			})
+			if err != nil {
+				log.Fatal("error writing message to dead letter queue", err)
+			}
+			log.Println("error unmarshaling message, message with error written to dead letter queue", err)
+			continue
 		}
 
 		log.Printf("processed capability created message: %s", msg)
@@ -100,6 +121,7 @@ func main() {
 		// Handle the message
 		err = handlers.CapabilityCreatedHandler(ctx, msg)
 		if err != nil {
+			// TODO should these errors be reported to dead letter queue? yes, if not temporary
 			log.Fatal("error handling capability created message", err)
 		}
 

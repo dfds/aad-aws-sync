@@ -3,6 +3,7 @@ package kafkamsgs
 const (
 	HeaderKeyVersion   string = "Version"
 	HeaderKeyEventName        = "Event Name"
+	HeaderKeyError            = "Error"
 )
 
 const (
