@@ -14,32 +14,13 @@ import (
 	"syscall"
 	"time"
 
+	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
+
 	"github.com/kelseyhightower/envconfig"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/protocol"
 	"github.com/segmentio/kafka-go/sasl/plain"
 )
-
-// KafkaConsumerConfig allows one to configure a Kafka consumer using
-// environment variables.
-type KafkaConsumerConfig struct {
-	Brokers []string `required:"true"`
-	GroupID string   `envconfig:"group_id",required:"true"`
-	Topic   string   `required:"true"`
-	// TODO split this out into its own config
-	SASLPlainUsername string `envconfig:"sasl_plain_username",required:"true"`
-	SASLPlainPassword string `envconfig:"sasl_plain_password",required:"true"`
-}
-
-// KafkaProducerConfig allows one to configure a Kafka producer using
-// environment variables.
-type KafkaProducerConfig struct {
-	Brokers []string `required:"true"`
-	Topic   string   `required:"true"`
-	// TODO split this out into its own config
-	SASLPlainUsername string `envconfig:"sasl_plain_username",required:"true"`
-	SASLPlainPassword string `envconfig:"sasl_plain_password",required:"true"`
-}
 
 // Example message published by the capability service:
 // {
@@ -171,15 +152,22 @@ func main() {
 	// hanlders would also be passed a azure client instance, which could be mocked during testing of the handler
 
 	// Process configurations
-	var consumerConfig KafkaConsumerConfig
+	var consumerConfig kafkautil.ConsumerConfig
 	err := envconfig.Process("consumer", &consumerConfig)
 	if err != nil {
 		log.Fatal("failed to process consumer configurations:", err)
 	}
-	var producerConfig KafkaProducerConfig
+
+	var producerConfig kafkautil.ProducerConfig
 	err = envconfig.Process("producer", &producerConfig)
 	if err != nil {
 		log.Fatal("failed to process producer configurations:", err)
+	}
+
+	var saslConfig kafkautil.AuthSASLPlainConfig
+	err = envconfig.Process("sasl_plain", &producerConfig)
+	if err != nil {
+		log.Fatal("failed to process auth configurations:", err)
 	}
 
 	// Configure TLS
@@ -197,8 +185,8 @@ func main() {
 
 	// Configure SASL
 	saslMechanism := plain.Mechanism{
-		Username: consumerConfig.SASLPlainUsername,
-		Password: consumerConfig.SASLPlainPassword,
+		Username: saslConfig.Username,
+		Password: saslConfig.Password,
 	}
 
 	// Configure connection dialer
@@ -245,26 +233,12 @@ func main() {
 	ctx := context.WithValue(context.Background(), ContextKeyAzureClient, azureClient)
 
 	// Configure Kafka producer
-	// Configure SASL
-	producerSASLMechanism := plain.Mechanism{
-		Username: producerConfig.SASLPlainUsername,
-		Password: producerConfig.SASLPlainPassword,
-	}
-
-	// Configure connection dialer
-	producerDialer := &kafka.Dialer{
-		Timeout:       10 * time.Second,
-		DualStack:     true,
-		TLS:           tlsConfig,
-		SASLMechanism: producerSASLMechanism,
-	}
-
 	// Initiate writer
 	w := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  producerConfig.Brokers,
 		Topic:    producerConfig.Topic,
 		Balancer: &kafka.Hash{},
-		Dialer:   producerDialer,
+		Dialer:   dialer,
 	})
 	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, w)
 
