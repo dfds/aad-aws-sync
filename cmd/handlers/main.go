@@ -1,5 +1,7 @@
 package main
 
+// TODO organize code into packages
+
 import (
 	"context"
 	"crypto/tls"
@@ -9,7 +11,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -21,11 +22,12 @@ import (
 // KafkaConsumerConfig allows one to configure a Kafka consumer using
 // environment variables.
 type KafkaConsumerConfig struct {
-	Brokers           []string `required:"true"`
-	GroupID           string   `envconfig:"group_id",required:"true"`
-	Topic             string   `required:"true"`
-	SASLPlainUsername string   `envconfig:"sasl_plain_username",required:"true"`
-	SASLPlainPassword string   `envconfig:"sasl_plain_password",required:"true"`
+	Brokers []string `required:"true"`
+	GroupID string   `envconfig:"group_id",required:"true"`
+	Topic   string   `required:"true"`
+	// TODO split this out into its own config
+	SASLPlainUsername string `envconfig:"sasl_plain_username",required:"true"`
+	SASLPlainPassword string `envconfig:"sasl_plain_password",required:"true"`
 }
 
 // Example message published by the capability service:
@@ -57,7 +59,44 @@ func (msg CapabilityCreatedMessage) String() string {
 	return fmt.Sprintf("%s (%s)", msg.Payload.CapabilityName, msg.Payload.CapabilityID)
 }
 
-// TODO organize code into packages
+const (
+	ContextKeyAzureClient int = iota
+)
+
+func GetAzureClient(ctx context.Context) AzureClient {
+	return ctx.Value(ContextKeyAzureClient).(AzureClient)
+}
+
+// MockAzureClient is used to mock the AzureClient interface.
+type MockAzureClient struct {
+	createGroupCalls []string
+	createGroupMock  func(string) (string, error)
+}
+
+func (c *MockAzureClient) CreateGroup(name string) (string, error) {
+	c.createGroupCalls = append(c.createGroupCalls, name)
+	return c.createGroupMock(name)
+}
+
+// TODO replace with real interface later, but this is approx
+type AzureClient interface {
+	CreateGroup(name string) (string, error)
+}
+
+func CapabilityCreatedHandler(ctx context.Context, msg CapabilityCreatedMessage) error {
+	log.Println("capability created handler", msg)
+
+	// Create an Azure AD group
+	azureClient := GetAzureClient(ctx)
+	groupID, err := azureClient.CreateGroup(msg.Payload.CapabilityName)
+	if err != nil {
+		return err
+	}
+	log.Println("created azure ad group:", msg.Payload.CapabilityName, groupID)
+
+	// TODO publish an event with the azure ad group id
+	return nil
+}
 
 func main() {
 	// configure a kafka client
@@ -121,10 +160,8 @@ func main() {
 		if err := r.Close(); err != nil {
 			log.Fatal("failed to close kafka reader:", err)
 		}
-		log.Println("closed kafka reader")
 	}
-	var cleanupOnce sync.Once
-	defer cleanupOnce.Do(cleanup)
+	defer cleanup()
 
 	// Clean up on SIGINT and SIGTERM.
 	sigs := make(chan os.Signal, 1)
@@ -132,11 +169,16 @@ func main() {
 	go func() {
 		sig := <-sigs
 		log.Println("caught signal", sig)
-		cleanupOnce.Do(cleanup)
+		cleanup()
 	}()
 
+	// Initiate handlers context
+	azureClient := &MockAzureClient{
+		createGroupMock: func(name string) (string, error) { return "aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
+	}
+	ctx := context.WithValue(context.Background(), ContextKeyAzureClient, azureClient)
+
 	// Read messages
-	ctx := context.Background()
 	for {
 		log.Println("fetch messages")
 		m, err := r.FetchMessage(ctx)
@@ -147,6 +189,9 @@ func main() {
 			log.Fatal("error fetching message:", err)
 		}
 		fmt.Printf("message at topic/partition/offset %v/%v/%v: %s = %s\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
+		log.Println("message headers", m.Headers)
+
+		// TODO in case of an error pass the message off to the dead letter queue with the error
 
 		var msg CapabilityCreatedMessage
 		err = json.Unmarshal(m.Value, &msg)
@@ -155,6 +200,14 @@ func main() {
 		}
 
 		log.Printf("processed capability created message: %s", msg)
+
+		// Handle the message
+		err = CapabilityCreatedHandler(ctx, msg)
+		if err != nil {
+			log.Fatal("error handling capability created message", err)
+		}
+
+		log.Println("dump create group calls on mock:", azureClient.createGroupCalls)
 
 		// Commit offset to the consumer group
 		if err := r.CommitMessages(ctx, m); err != nil {
