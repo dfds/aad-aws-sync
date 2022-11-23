@@ -12,26 +12,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.dfds.cloud/aad-aws-sync/internal/handlers"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/protocol"
 )
-
-const (
-	ContextKeyAzureClient int = iota
-	ContextKeyKafkaProducer
-)
-
-func GetAzureClient(ctx context.Context) AzureClient {
-	return ctx.Value(ContextKeyAzureClient).(AzureClient)
-}
-
-func GetKafkaProducer(ctx context.Context) KafkaProducer {
-	return ctx.Value(ContextKeyKafkaProducer).(KafkaProducer)
-}
 
 // MockAzureClient is used to mock the AzureClient interface.
 type MockAzureClient struct {
@@ -44,11 +31,6 @@ func (c *MockAzureClient) CreateGroup(name string) (string, error) {
 	return c.createGroupMock(name)
 }
 
-// TODO replace with real interface later, but this is approx
-type AzureClient interface {
-	CreateGroup(name string) (string, error)
-}
-
 type MockKafkaProducer struct {
 	writeMessagesCalls [][]kafka.Message
 	writeMessagesMock  func(context.Context, ...kafka.Message) error
@@ -59,61 +41,7 @@ func (p *MockKafkaProducer) WriteMessages(ctx context.Context, msgs ...kafka.Mes
 	return p.writeMessagesMock(ctx, msgs...)
 }
 
-type KafkaProducer interface {
-	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
-}
-
-func CapabilityCreatedHandler(ctx context.Context, msg kafkamsgs.CapabilityCreatedMessage) error {
-	log.Println("capability created handler", msg)
-
-	azureClient := GetAzureClient(ctx)
-	kafkaProducer := GetKafkaProducer(ctx)
-
-	// Create an Azure AD group
-	groupID, err := azureClient.CreateGroup(msg.Payload.CapabilityName)
-	if err != nil {
-		return err
-	}
-	log.Println("created azure ad group:", msg.Payload.CapabilityName, groupID)
-
-	// Publish a message with the result
-	resp, err := json.Marshal(&kafkamsgs.AzureADGroupCreatedMessage{
-		CapabilityName: msg.Payload.CapabilityName,
-		AzureADGroupID: groupID,
-	})
-	if err != nil {
-		return err
-	}
-
-	return kafkaProducer.WriteMessages(ctx, kafka.Message{
-		Key:   []byte(groupID),
-		Value: resp,
-		Headers: []protocol.Header{
-			{
-				Key:   kafkamsgs.HeaderKeyVersion,
-				Value: []byte(kafkamsgs.VersionAzureADGroupCreated),
-			},
-			{
-				Key:   kafkamsgs.HeaderKeyEventName,
-				Value: []byte(kafkamsgs.EventNameAzureADGroupCreated),
-			},
-		},
-	})
-}
-
 func main() {
-	// configure a kafka client
-	// poll kafka topic for capability creation events
-	// parse the kafka messages
-
-	// pass the message to an event handler, the message would just contain the capability id essentially
-	// the event handler would create azure active directory group with for the capability
-	// the event handler would then publish a kafka message with the capability id and the azure active directory id on another topic
-	// the event handler would then also commit the message offset to the consumer group
-
-	// handlers would be passed in a kafka publisher instance, which could be mocked during testing of the handler
-	// hanlders would also be passed a azure client instance, which could be mocked during testing of the handler
-
 	// Process configurations
 	var consumerConfig kafkautil.ConsumerConfig
 	err := envconfig.Process("consumer", &consumerConfig)
@@ -161,14 +89,14 @@ func main() {
 		cleanup()
 	}()
 
-	// Initiate handlers context
-
-	// Configure Azure Client
+	// Mock the Azure Client
 	azureClient := &MockAzureClient{
-		createGroupMock: func(name string) (string, error) { return "aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
+		createGroupMock: func(name string) (string, error) { return "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
 	}
-	ctx := context.WithValue(context.Background(), ContextKeyAzureClient, azureClient)
-	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, producer)
+
+	// Initiate handlers context
+	ctx := context.WithValue(context.Background(), handlers.ContextKeyAzureClient, azureClient)
+	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaProducer, producer)
 
 	// Read messages
 	for {
@@ -193,7 +121,7 @@ func main() {
 		log.Printf("processed capability created message: %s", msg)
 
 		// Handle the message
-		err = CapabilityCreatedHandler(ctx, msg)
+		err = handlers.CapabilityCreatedHandler(ctx, msg)
 		if err != nil {
 			log.Fatal("error handling capability created message", err)
 		}
