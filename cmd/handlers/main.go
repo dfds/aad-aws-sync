@@ -16,6 +16,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/protocol"
 	"github.com/segmentio/kafka-go/sasl/plain"
 )
 
@@ -24,6 +25,16 @@ import (
 type KafkaConsumerConfig struct {
 	Brokers []string `required:"true"`
 	GroupID string   `envconfig:"group_id",required:"true"`
+	Topic   string   `required:"true"`
+	// TODO split this out into its own config
+	SASLPlainUsername string `envconfig:"sasl_plain_username",required:"true"`
+	SASLPlainPassword string `envconfig:"sasl_plain_password",required:"true"`
+}
+
+// KafkaProducerConfig allows one to configure a Kafka producer using
+// environment variables.
+type KafkaProducerConfig struct {
+	Brokers []string `required:"true"`
 	Topic   string   `required:"true"`
 	// TODO split this out into its own config
 	SASLPlainUsername string `envconfig:"sasl_plain_username",required:"true"`
@@ -55,16 +66,26 @@ type CapabilityCreatedMessage struct {
 	Payload        CapabilityCreatedMessagePayload `json:"payload"`
 }
 
+type AzureADGroupCreatedMessage struct {
+	CapabilityName string `json:"capabilityName"`
+	AzureADGroupID string `json:"azureAdGroupId"`
+}
+
 func (msg CapabilityCreatedMessage) String() string {
 	return fmt.Sprintf("%s (%s)", msg.Payload.CapabilityName, msg.Payload.CapabilityID)
 }
 
 const (
 	ContextKeyAzureClient int = iota
+	ContextKeyKafkaProducer
 )
 
 func GetAzureClient(ctx context.Context) AzureClient {
 	return ctx.Value(ContextKeyAzureClient).(AzureClient)
+}
+
+func GetKafkaProducer(ctx context.Context) KafkaProducer {
+	return ctx.Value(ContextKeyKafkaProducer).(KafkaProducer)
 }
 
 // MockAzureClient is used to mock the AzureClient interface.
@@ -83,19 +104,57 @@ type AzureClient interface {
 	CreateGroup(name string) (string, error)
 }
 
+type MockKafkaProducer struct {
+	writeMessagesCalls [][]kafka.Message
+	writeMessagesMock  func(context.Context, ...kafka.Message) error
+}
+
+func (p *MockKafkaProducer) WriteMessages(ctx context.Context, msgs ...kafka.Message) error {
+	p.writeMessagesCalls = append(p.writeMessagesCalls, msgs)
+	return p.writeMessagesMock(ctx, msgs...)
+}
+
+type KafkaProducer interface {
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
+}
+
 func CapabilityCreatedHandler(ctx context.Context, msg CapabilityCreatedMessage) error {
 	log.Println("capability created handler", msg)
 
-	// Create an Azure AD group
 	azureClient := GetAzureClient(ctx)
+	kafkaProducer := GetKafkaProducer(ctx)
+
+	// Create an Azure AD group
 	groupID, err := azureClient.CreateGroup(msg.Payload.CapabilityName)
 	if err != nil {
 		return err
 	}
 	log.Println("created azure ad group:", msg.Payload.CapabilityName, groupID)
 
-	// TODO publish an event with the azure ad group id
-	return nil
+	// Publish a message with the result
+	resp, err := json.Marshal(&AzureADGroupCreatedMessage{
+		CapabilityName: msg.Payload.CapabilityName,
+		AzureADGroupID: groupID,
+	})
+	if err != nil {
+		return err
+	}
+
+	return kafkaProducer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(groupID),
+		Value: resp,
+		// TODO put values into conts
+		Headers: []protocol.Header{
+			{
+				Key:   "Version",
+				Value: []byte("1"),
+			},
+			{
+				Key:   "Event Name",
+				Value: []byte("azure_ad_group_created"),
+			},
+		},
+	})
 }
 
 func main() {
@@ -103,19 +162,24 @@ func main() {
 	// poll kafka topic for capability creation events
 	// parse the kafka messages
 
-	// TODO pass the message to an event handler, the message would just contain the capability id essentially
-	// TODO the event handler would create azure active directory group with for the capability
-	// TODO the event handler would then publish a kafka message with the capability id and the azure active directory id on another topic
-	// TODO the event handler would then also commit the message offset to the consumer group
+	// pass the message to an event handler, the message would just contain the capability id essentially
+	// the event handler would create azure active directory group with for the capability
+	// the event handler would then publish a kafka message with the capability id and the azure active directory id on another topic
+	// the event handler would then also commit the message offset to the consumer group
 
-	// TODO handlers would be passed in a kafka publisher instance, which could be mocked during testing of the handler
-	// TODO hanlders would also be passed a azure client instance, which could be mocked during testing of the handler
+	// handlers would be passed in a kafka publisher instance, which could be mocked during testing of the handler
+	// hanlders would also be passed a azure client instance, which could be mocked during testing of the handler
 
 	// Process configurations
 	var consumerConfig KafkaConsumerConfig
 	err := envconfig.Process("consumer", &consumerConfig)
 	if err != nil {
 		log.Fatal("failed to process consumer configurations:", err)
+	}
+	var producerConfig KafkaProducerConfig
+	err = envconfig.Process("producer", &producerConfig)
+	if err != nil {
+		log.Fatal("failed to process producer configurations:", err)
 	}
 
 	// Configure TLS
@@ -173,10 +237,36 @@ func main() {
 	}()
 
 	// Initiate handlers context
+
+	// Configure Azure Client
 	azureClient := &MockAzureClient{
 		createGroupMock: func(name string) (string, error) { return "aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
 	}
 	ctx := context.WithValue(context.Background(), ContextKeyAzureClient, azureClient)
+
+	// Configure Kafka producer
+	// Configure SASL
+	producerSASLMechanism := plain.Mechanism{
+		Username: producerConfig.SASLPlainUsername,
+		Password: producerConfig.SASLPlainPassword,
+	}
+
+	// Configure connection dialer
+	producerDialer := &kafka.Dialer{
+		Timeout:       10 * time.Second,
+		DualStack:     true,
+		TLS:           tlsConfig,
+		SASLMechanism: producerSASLMechanism,
+	}
+
+	// Initiate writer
+	w := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  producerConfig.Brokers,
+		Topic:    producerConfig.Topic,
+		Balancer: &kafka.Hash{},
+		Dialer:   producerDialer,
+	})
+	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, w)
 
 	// Read messages
 	for {
@@ -191,11 +281,10 @@ func main() {
 		fmt.Printf("message at topic/partition/offset %v/%v/%v: %s = %s\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
 		log.Println("message headers", m.Headers)
 
-		// TODO in case of an error pass the message off to the dead letter queue with the error
-
 		var msg CapabilityCreatedMessage
 		err = json.Unmarshal(m.Value, &msg)
 		if err != nil {
+			// TODO forward the message to the dead letter queue
 			log.Fatal("error unmarshaling message", err)
 		}
 
