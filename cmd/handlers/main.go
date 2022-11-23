@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,14 +11,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/protocol"
-	"github.com/segmentio/kafka-go/sasl/plain"
 )
 
 // Example message published by the capability service:
@@ -164,52 +161,26 @@ func main() {
 		log.Fatal("failed to process producer configurations:", err)
 	}
 
-	var saslConfig kafkautil.AuthSASLPlainConfig
+	var authConfig kafkautil.AuthSASLPlainConfig
 	err = envconfig.Process("sasl_plain", &producerConfig)
 	if err != nil {
 		log.Fatal("failed to process auth configurations:", err)
 	}
 
-	// Configure TLS
-	tlsConfig := &tls.Config{
-		MinVersion:               tls.VersionTLS12,
-		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
-		CipherSuites: []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		},
-	}
+	// Iniate the dialer
+	dialer := kafkautil.NewDialer(authConfig)
 
-	// Configure SASL
-	saslMechanism := plain.Mechanism{
-		Username: saslConfig.Username,
-		Password: saslConfig.Password,
-	}
+	// Initiate consumer
+	consumer := kafkautil.NewConsumer(consumerConfig, dialer)
 
-	// Configure connection dialer
-	dialer := &kafka.Dialer{
-		Timeout:       10 * time.Second,
-		DualStack:     true,
-		TLS:           tlsConfig,
-		SASLMechanism: saslMechanism,
-	}
-
-	// Initiate reader
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: consumerConfig.Brokers,
-		GroupID: consumerConfig.GroupID,
-		Topic:   consumerConfig.Topic,
-		Dialer:  dialer,
-	})
+	// Initiate producer
+	producer := kafkautil.NewProducer(producerConfig, dialer)
 
 	// Hand clean up, need to signal to the consumer group that the
 	// process is exiting so that it does not have to wait for a timeout
 	// to rebalance.
 	cleanup := func() {
-		if err := r.Close(); err != nil {
+		if err := consumer.Close(); err != nil {
 			log.Fatal("failed to close kafka reader:", err)
 		}
 	}
@@ -231,21 +202,12 @@ func main() {
 		createGroupMock: func(name string) (string, error) { return "aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
 	}
 	ctx := context.WithValue(context.Background(), ContextKeyAzureClient, azureClient)
-
-	// Configure Kafka producer
-	// Initiate writer
-	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:  producerConfig.Brokers,
-		Topic:    producerConfig.Topic,
-		Balancer: &kafka.Hash{},
-		Dialer:   dialer,
-	})
-	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, w)
+	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, producer)
 
 	// Read messages
 	for {
 		log.Println("fetch messages")
-		m, err := r.FetchMessage(ctx)
+		m, err := consumer.FetchMessage(ctx)
 		if err == io.EOF {
 			log.Println("connection closed")
 			break
@@ -273,7 +235,7 @@ func main() {
 		log.Println("dump create group calls on mock:", azureClient.createGroupCalls)
 
 		// Commit offset to the consumer group
-		if err := r.CommitMessages(ctx, m); err != nil {
+		if err := consumer.CommitMessages(ctx, m); err != nil {
 			log.Fatal("failed to commit messages:", err)
 		}
 	}
