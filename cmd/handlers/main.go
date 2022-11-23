@@ -12,46 +12,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/protocol"
 )
-
-// Example message published by the capability service:
-// {
-//   "version": "1",
-//   "eventName": "capability_created",
-//   "x-correlationId": "e2c2dbf6-0318-4aa2-8765-15ef75c5def3",
-//   "x-sender": "CapabilityService.WebApi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-//   "payload": {
-//     "capabilityId": "2335d768-add3-4022-89ba-3d5c2b5cdba3",
-//     "capabilityName": "Sandbox-samolak"
-//   }
-// }
-
-type CapabilityCreatedMessagePayload struct {
-	CapabilityID   string `json:"capabilityId"`
-	CapabilityName string `json:"capabilityName"`
-}
-
-type CapabilityCreatedMessage struct {
-	Version        string                          `json:"version"`
-	EventName      string                          `json:"eventName"`
-	XCorellationID string                          `json:"x-corellationId"`
-	XSender        string                          `json:"x-sender"`
-	Payload        CapabilityCreatedMessagePayload `json:"payload"`
-}
-
-type AzureADGroupCreatedMessage struct {
-	CapabilityName string `json:"capabilityName"`
-	AzureADGroupID string `json:"azureAdGroupId"`
-}
-
-func (msg CapabilityCreatedMessage) String() string {
-	return fmt.Sprintf("%s (%s)", msg.Payload.CapabilityName, msg.Payload.CapabilityID)
-}
 
 const (
 	ContextKeyAzureClient int = iota
@@ -96,7 +63,7 @@ type KafkaProducer interface {
 	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
 }
 
-func CapabilityCreatedHandler(ctx context.Context, msg CapabilityCreatedMessage) error {
+func CapabilityCreatedHandler(ctx context.Context, msg kafkamsgs.CapabilityCreatedMessage) error {
 	log.Println("capability created handler", msg)
 
 	azureClient := GetAzureClient(ctx)
@@ -110,7 +77,7 @@ func CapabilityCreatedHandler(ctx context.Context, msg CapabilityCreatedMessage)
 	log.Println("created azure ad group:", msg.Payload.CapabilityName, groupID)
 
 	// Publish a message with the result
-	resp, err := json.Marshal(&AzureADGroupCreatedMessage{
+	resp, err := json.Marshal(&kafkamsgs.AzureADGroupCreatedMessage{
 		CapabilityName: msg.Payload.CapabilityName,
 		AzureADGroupID: groupID,
 	})
@@ -121,15 +88,14 @@ func CapabilityCreatedHandler(ctx context.Context, msg CapabilityCreatedMessage)
 	return kafkaProducer.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(groupID),
 		Value: resp,
-		// TODO put values into conts
 		Headers: []protocol.Header{
 			{
-				Key:   "Version",
-				Value: []byte("1"),
+				Key:   kafkamsgs.HeaderKeyVersion,
+				Value: []byte(kafkamsgs.VersionAzureADGroupCreated),
 			},
 			{
-				Key:   "Event Name",
-				Value: []byte("azure_ad_group_created"),
+				Key:   kafkamsgs.HeaderKeyEventName,
+				Value: []byte(kafkamsgs.EventNameAzureADGroupCreated),
 			},
 		},
 	})
@@ -217,7 +183,7 @@ func main() {
 		fmt.Printf("message at topic/partition/offset %v/%v/%v: %s = %s\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
 		log.Println("message headers", m.Headers)
 
-		var msg CapabilityCreatedMessage
+		var msg kafkamsgs.CapabilityCreatedMessage
 		err = json.Unmarshal(m.Value, &msg)
 		if err != nil {
 			// TODO forward the message to the dead letter queue
