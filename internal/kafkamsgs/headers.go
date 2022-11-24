@@ -7,9 +7,10 @@ const (
 )
 
 const (
+	EventNameCapabilityCreated   string = "capability_created"
 	EventNameAzureADGroupCreated string = "azure_ad_group_created"
 )
 
 const (
-	VersionAzureADGroupCreated string = "1"
+	Version1 string = "1"
 )

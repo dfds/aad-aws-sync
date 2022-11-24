@@ -40,7 +40,7 @@ func CapabilityCreatedHandler(ctx context.Context, msg kafkamsgs.CapabilityCreat
 		Headers: []protocol.Header{
 			{
 				Key:   kafkamsgs.HeaderKeyVersion,
-				Value: []byte(kafkamsgs.VersionAzureADGroupCreated),
+				Value: []byte(kafkamsgs.Version1),
 			},
 			{
 				Key:   kafkamsgs.HeaderKeyEventName,
