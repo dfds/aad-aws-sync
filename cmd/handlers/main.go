@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -144,6 +145,10 @@ func main() {
 				handleError(ctx, m, fmt.Errorf("unsupported version of the capability created event: %q\n", event.Version))
 				goto CommitOffset
 			}
+		case "":
+			// Handle undetermined event name
+			handleError(ctx, m, errors.New("unable to detect an event name"))
+			goto CommitOffset
 		default:
 			// Skip unhandled event
 			log.Printf("skip processing unhandled event: %q\n", event.Name)
