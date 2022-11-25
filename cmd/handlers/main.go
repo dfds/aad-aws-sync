@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,13 +16,11 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/protocol"
 )
 
 func main() {
 	// Process configurations
-	var authConfig kafkautil.AuthSASLPlainConfig
+	var authConfig kafkautil.AuthConfig
 	err := envconfig.Process("sasl_plain", &authConfig)
 	if err != nil {
 		log.Fatal("failed to process auth configurations:", err)
@@ -51,30 +48,14 @@ func main() {
 	dialer := kafkautil.NewDialer(authConfig)
 
 	// Initiate consumer
-	consumer := kafkautil.NewConsumer(consumerConfig, dialer)
+	consumer := kafkautil.NewConsumer(consumerConfig, authConfig, dialer)
 
 	// Initiate producers
-	producer := kafkautil.NewProducer(producerConfig, dialer)
+	producer := kafkautil.NewProducer(producerConfig, authConfig, dialer)
 	defer producer.Close()
-
-	// Error handler, write errors to a dead letter queue
-	errorProducer := kafkautil.NewProducer(errorProducerConfig, dialer)
+	// Write errors to a dead letter queue
+	errorProducer := kafkautil.NewProducer(errorProducerConfig, authConfig, dialer)
 	defer errorProducer.Close()
-	handleError := func(ctx context.Context, omsg kafka.Message, oerr error) {
-		// Write the message along with the error to the dead letter queue.
-		err := errorProducer.WriteMessages(ctx, kafka.Message{
-			Key:   omsg.Key,
-			Value: omsg.Value,
-			Headers: append(omsg.Headers, protocol.Header{
-				Key:   kafkamsgs.HeaderKeyError,
-				Value: []byte(oerr.Error()),
-			}),
-		})
-		if err != nil {
-			log.Fatal("error writing message to dead letter queue", err)
-		}
-		log.Println("error while processing message, message with error written to dead letter queue", err)
-	}
 
 	// Hand clean up, need to signal to the consumer group that the
 	// process is exiting so that it does not have to wait for a timeout
@@ -103,8 +84,9 @@ func main() {
 	// Initiate handlers context
 	ctx := context.WithValue(context.Background(), handlers.ContextKeyAzureClient, azureClient)
 	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaProducer, producer)
+	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaErrorProducer, errorProducer)
 
-	// Read messages
+	// Read messages from the topic
 	for {
 		log.Println("fetch messages")
 		m, err := consumer.FetchMessage(ctx)
@@ -117,38 +99,25 @@ func main() {
 		log.Printf("message at topic/partition/offset %v/%v/%v: %s = %s : %v\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value), m.Headers)
 
 		// Parse event metadata from the message to determine if we are expected to handle it
-		event := kafkamsgs.GetEventMetadata(m)
+		event := kafkamsgs.NewEventFromMessage(m)
+		if event == nil || event.Name == "" {
+			// Handle undetermined event name
+			handlers.PermanentErrorHandler(ctx, *event, errors.New("unable to detect an event name"))
+			goto CommitOffset
+		}
 
-		// TODO tests for all this logic
+		// Route the event to the appropriate handler based on event name and version
 		switch event.Name {
 		case kafkamsgs.EventNameCapabilityCreated:
 			switch event.Version {
 			case kafkamsgs.Version1:
-				// Parse the payload
-				// TODO does this belong within the handler?
-				var msg kafkamsgs.CapabilityCreatedMessage
-				err = json.Unmarshal(m.Value, &msg)
-				if err != nil {
-					handleError(ctx, m, err)
-					goto CommitOffset
-				}
 				// Handle the event
-				err = handlers.CapabilityCreatedHandler(ctx, msg)
-				if err != nil {
-					// TODO if this error is temporary it should be retried within the handler
-					handleError(ctx, m, err)
-					goto CommitOffset
-				}
+				handlers.CapabilityCreatedHandler(ctx, *event)
 				// Debug
 				log.Println("dump create group calls on mock:", azureClient.CreateGroupCalls)
 			default:
-				handleError(ctx, m, fmt.Errorf("unsupported version of the capability created event: %q\n", event.Version))
-				goto CommitOffset
+				handlers.PermanentErrorHandler(ctx, *event, fmt.Errorf("unsupported version of the capability created event: %q\n", event.Version))
 			}
-		case "":
-			// Handle undetermined event name
-			handleError(ctx, m, errors.New("unable to detect an event name"))
-			goto CommitOffset
 		default:
 			// Skip unhandled event
 			log.Printf("skip processing unhandled event: %q\n", event.Name)

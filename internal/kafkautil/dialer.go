@@ -10,7 +10,7 @@ import (
 
 // NewDialer configures a connection dialer using TLS and plain SASL
 // authentication and some reasonsbile defaults.
-func NewDialer(authConfig AuthSASLPlainConfig) *kafka.Dialer {
+func NewDialer(authConfig AuthConfig) *kafka.Dialer {
 	// Configure TLS
 	tlsConfig := &tls.Config{
 		MinVersion:               tls.VersionTLS12,

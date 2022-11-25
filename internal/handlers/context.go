@@ -9,6 +9,7 @@ import (
 const (
 	ContextKeyAzureClient int = iota
 	ContextKeyKafkaProducer
+	ContextKeyKafkaErrorProducer
 )
 
 func GetAzureClient(ctx context.Context) AzureClient {
@@ -17,6 +18,10 @@ func GetAzureClient(ctx context.Context) AzureClient {
 
 func GetKafkaProducer(ctx context.Context) KafkaProducer {
 	return ctx.Value(ContextKeyKafkaProducer).(KafkaProducer)
+}
+
+func GetKafkaErrorProducer(ctx context.Context) KafkaProducer {
+	return ctx.Value(ContextKeyKafkaErrorProducer).(KafkaProducer)
 }
 
 type AzureClient interface {

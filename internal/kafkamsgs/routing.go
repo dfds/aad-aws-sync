@@ -6,9 +6,10 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type EventMetadata struct {
+type Event struct {
 	Name    string
 	Version string
+	Message kafka.Message
 }
 
 // MessageMetadata represents some metadata provided within the event
@@ -18,8 +19,10 @@ type MessageMetadata struct {
 	EventName string `json:"eventName"`
 }
 
-func GetEventMetadata(msg kafka.Message) *EventMetadata {
-	var event EventMetadata
+func NewEventFromMessage(msg kafka.Message) *Event {
+	event := Event{
+		Message: msg,
+	}
 
 	// Check the headers of the message
 	for _, header := range msg.Headers {
