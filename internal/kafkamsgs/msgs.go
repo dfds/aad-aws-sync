@@ -1,7 +1,5 @@
 package kafkamsgs
 
-import "fmt"
-
 // CapabilityCreatedMessage is a message emitted by the capability services
 // when a new capability is created.
 //
@@ -23,10 +21,6 @@ type CapabilityCreatedMessage struct {
 	XCorellationID string                          `json:"x-corellationId"`
 	XSender        string                          `json:"x-sender"`
 	Payload        CapabilityCreatedMessagePayload `json:"payload"`
-}
-
-func (msg CapabilityCreatedMessage) String() string {
-	return fmt.Sprintf("%s (%s)", msg.Payload.CapabilityName, msg.Payload.CapabilityID)
 }
 
 type CapabilityCreatedMessagePayload struct {

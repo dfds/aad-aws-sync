@@ -3,12 +3,14 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/protocol"
+	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 )
 
@@ -28,14 +30,25 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	// Attempt to create an Azure AD group with exponential backoff
 	// or until the context is marked done.
 	azureClient := GetAzureClient(ctx)
-	// TODO should try to make this operation idempotent, try to find some unique constraint on these groups and use to make sure that the group is created only once
-	createGroup := func() (string, error) {
+	azureParentAdministrativeUnitID := GetAzureParentAdministrativeUnitID(ctx)
+	// TODO should try to make this operation idempotent, try to find some unique constraint on these groups and use to make sure that the group is created only once, perhapps enabling mail would make it idempotent since the mailbox should be unique
+	createGroupRequest := azure.CreateAdministrativeUnitGroupRequest{
+		OdataType:       "#Microsoft.Graph.Group",
+		Description:     "[Automated] - aad-aws-sync",
+		DisplayName:     fmt.Sprintf("CI_SSU_Cap - %s", msg.Payload.CapabilityID),
+		MailNickname:    fmt.Sprintf("ci-ssu_cap_%s", msg.Payload.CapabilityID),
+		GroupTypes:      []interface{}{},
+		MailEnabled:     false,
+		SecurityEnabled: true,
+
+		ParentAdministrativeUnitId: azureParentAdministrativeUnitID,
+	}
+	createGroup := func() (*azure.CreateAdministrativeUnitGroupResponse, error) {
 		// TODO determine if the error is permanent here
-		// TODO pass the context into this operation
-		return azureClient.CreateGroup(msg.Payload.CapabilityName)
+		return azureClient.CreateAdministrativeUnitGroup(ctx, createGroupRequest)
 	}
 	createGroupBackoff := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
-	groupID, err := backoff.RetryNotifyWithData[string](createGroup, createGroupBackoff, func(err error, d time.Duration) {
+	azureADGroup, err := backoff.RetryNotifyWithData[*azure.CreateAdministrativeUnitGroupResponse](createGroup, createGroupBackoff, func(err error, d time.Duration) {
 		log.Printf("failed creating group after %s with %s", d, err)
 	})
 	if err != nil {
@@ -48,7 +61,7 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	kafkaProducer := GetKafkaProducer(ctx)
 	resp, err := json.Marshal(&kafkamsgs.AzureADGroupCreatedMessage{
 		CapabilityName: msg.Payload.CapabilityName,
-		AzureADGroupID: groupID,
+		AzureADGroupID: azureADGroup.ID,
 	})
 	if err != nil {
 		PermanentErrorHandler(ctx, event, err)
@@ -60,7 +73,7 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	produceResponse := func() error {
 		// TODO any permanent errors here?
 		return kafkaProducer.WriteMessages(ctx, kafka.Message{
-			Key:   []byte(groupID),
+			Key:   []byte(azureADGroup.ID),
 			Value: resp,
 			Headers: []protocol.Header{
 				{

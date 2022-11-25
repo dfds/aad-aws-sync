@@ -4,16 +4,22 @@ import (
 	"context"
 
 	"github.com/segmentio/kafka-go"
+	"go.dfds.cloud/aad-aws-sync/internal/azure"
 )
 
 const (
 	ContextKeyAzureClient int = iota
+	ContextKeyAzureParentAdministrativeUnitID
 	ContextKeyKafkaProducer
 	ContextKeyKafkaErrorProducer
 )
 
 func GetAzureClient(ctx context.Context) AzureClient {
 	return ctx.Value(ContextKeyAzureClient).(AzureClient)
+}
+
+func GetAzureParentAdministrativeUnitID(ctx context.Context) string {
+	return ctx.Value(ContextKeyAzureParentAdministrativeUnitID).(string)
 }
 
 func GetKafkaProducer(ctx context.Context) KafkaProducer {
@@ -25,7 +31,7 @@ func GetKafkaErrorProducer(ctx context.Context) KafkaProducer {
 }
 
 type AzureClient interface {
-	CreateGroup(name string) (string, error)
+	CreateAdministrativeUnitGroup(ctx context.Context, requestPayload azure.CreateAdministrativeUnitGroupRequest) (*azure.CreateAdministrativeUnitGroupResponse, error)
 }
 
 type KafkaProducer interface {

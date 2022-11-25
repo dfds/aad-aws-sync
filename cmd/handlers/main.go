@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/azuretest"
 	"go.dfds.cloud/aad-aws-sync/internal/handlers"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
@@ -18,10 +19,20 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
+type Config struct {
+	AzureParentAdministrativeUnitID string `envconfig:"azure_parent_administrative_unit_id",required:"true"`
+}
+
 func main() {
 	// Process configurations
+	var config Config
+	err := envconfig.Process("main", &config)
+	if err != nil {
+		log.Fatal("failed to process main configurations:", err)
+	}
+
 	var authConfig kafkautil.AuthConfig
-	err := envconfig.Process("sasl_plain", &authConfig)
+	err = envconfig.Process("sasl_plain", &authConfig)
 	if err != nil {
 		log.Fatal("failed to process auth configurations:", err)
 	}
@@ -78,11 +89,14 @@ func main() {
 
 	// Mock the Azure Client
 	azureClient := &azuretest.MockAzureClient{
-		CreateGroupMock: func(name string) (string, error) { return "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac", nil },
+		CreateAdministrativeUnitGroupRequestMock: func(_ context.Context, _ azure.CreateAdministrativeUnitGroupRequest) (*azure.CreateAdministrativeUnitGroupResponse, error) {
+			return &azure.CreateAdministrativeUnitGroupResponse{ID: "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac"}, nil
+		},
 	}
 
 	// Initiate handlers context
 	ctx := context.WithValue(context.Background(), handlers.ContextKeyAzureClient, azureClient)
+	ctx = context.WithValue(ctx, handlers.ContextKeyAzureParentAdministrativeUnitID, config.AzureParentAdministrativeUnitID)
 	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaProducer, producer)
 	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaErrorProducer, errorProducer)
 
@@ -114,7 +128,7 @@ func main() {
 				// Handle the event
 				handlers.CapabilityCreatedHandler(ctx, *event)
 				// Debug
-				log.Println("dump create group calls on mock:", azureClient.CreateGroupCalls)
+				log.Println("dump create ad group calls on mock:", azureClient.CreateAdministrativeUnitGroupRequestCalls)
 			default:
 				handlers.PermanentErrorHandler(ctx, *event, fmt.Errorf("unsupported version of the capability created event: %q\n", event.Version))
 			}

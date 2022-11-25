@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -80,7 +81,18 @@ func main() {
 		// Check if Capability has a group in Azure AD, if it doesn't create it
 		if resp, ok := groupsInAzure[azureGroupName]; !ok {
 			fmt.Printf("Capability %s doesn't exist in Azure, creating.\n", rootId)
-			resp, err := azureClient.CreateAdministrativeUnitGroup(aUnit.ID, rootId)
+			createGroupRequest := azure.CreateAdministrativeUnitGroupRequest{
+				OdataType:       "#Microsoft.Graph.Group",
+				Description:     "[Automated] - aad-aws-sync",
+				DisplayName:     fmt.Sprintf("CI_SSU_Cap - %s", rootId),
+				MailNickname:    fmt.Sprintf("ci-ssu_cap_%s", rootId),
+				GroupTypes:      []interface{}{},
+				MailEnabled:     false,
+				SecurityEnabled: true,
+
+				ParentAdministrativeUnitId: aUnit.ID,
+			}
+			resp, err := azureClient.CreateAdministrativeUnitGroup(context.TODO(), createGroupRequest)
 			if err != nil {
 				log.Fatal(err)
 			}

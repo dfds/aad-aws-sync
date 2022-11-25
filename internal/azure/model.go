@@ -76,6 +76,8 @@ type CreateAdministrativeUnitGroupRequest struct {
 	GroupTypes      []interface{} `json:"groupTypes"`
 	MailEnabled     bool          `json:"mailEnabled"`
 	SecurityEnabled bool          `json:"securityEnabled"`
+
+	ParentAdministrativeUnitId string `json:"-"`
 }
 
 type AddGroupMemberRequest struct {

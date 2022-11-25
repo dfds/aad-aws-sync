@@ -2,16 +2,20 @@ package azure
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"k8s.io/utils/env"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"k8s.io/utils/env"
 )
+
+// TODO look into using: https://github.com/microsoftgraph/msgraph-sdk-go
 
 type Client struct {
 	httpClient *http.Client
@@ -201,23 +205,15 @@ func (c *Client) GetAdministrativeUnits() (*GetAdministrativeUnitsResponse, erro
 	return payload, nil
 }
 
-func (c *Client) CreateAdministrativeUnitGroup(aUnitId string, rootId string) (*CreateAdministrativeUnitGroupResponse, error) {
-	requestPayload := CreateAdministrativeUnitGroupRequest{
-		OdataType:       "#Microsoft.Graph.Group",
-		Description:     "[Automated] - aad-aws-sync",
-		DisplayName:     fmt.Sprintf("CI_SSU_Cap - %s", rootId),
-		MailNickname:    fmt.Sprintf("ci-ssu_cap_%s", rootId),
-		GroupTypes:      []interface{}{},
-		MailEnabled:     false,
-		SecurityEnabled: true,
-	}
-
+func (c *Client) CreateAdministrativeUnitGroup(ctx context.Context, requestPayload CreateAdministrativeUnitGroupRequest) (*CreateAdministrativeUnitGroupResponse, error) {
 	serialised, err := json.Marshal(requestPayload)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members", aUnitId), bytes.NewBuffer([]byte(serialised)))
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members",
+			requestPayload.ParentAdministrativeUnitId), bytes.NewBuffer([]byte(serialised)))
 	if err != nil {
 		return nil, err
 	}
@@ -228,25 +224,24 @@ func (c *Client) CreateAdministrativeUnitGroup(aUnitId string, rootId string) (*
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.StatusCode != 201 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated {
+		return nil, ApiError{resp.StatusCode}
 	}
 
-	var payload *CreateAdministrativeUnitGroupResponse
-
+	var payload CreateAdministrativeUnitGroupResponse
 	err = json.Unmarshal(rawData, &payload)
 	if err != nil {
 		return nil, err
 	}
 
-	return payload, nil
+	return &payload, nil
 }
 
 func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) error {
