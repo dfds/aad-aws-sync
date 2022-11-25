@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
@@ -71,21 +72,15 @@ func main() {
 	// Hand clean up, need to signal to the consumer group that the
 	// process is exiting so that it does not have to wait for a timeout
 	// to rebalance.
+	var cleanupOnce sync.Once
 	cleanup := func() {
+		log.Println("closing consumer")
 		if err := consumer.Close(); err != nil {
 			log.Fatal("failed to close kafka reader:", err)
 		}
+		log.Println("consumer closed")
 	}
-	defer cleanup()
-
-	// Clean up on SIGINT and SIGTERM.
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigs
-		log.Println("caught signal", sig)
-		cleanup()
-	}()
+	defer cleanupOnce.Do(cleanup)
 
 	// Mock the Azure Client
 	azureClient := &azuretest.MockAzureClient{
@@ -95,10 +90,22 @@ func main() {
 	}
 
 	// Initiate handlers context
-	ctx := context.WithValue(context.Background(), handlers.ContextKeyAzureClient, azureClient)
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, handlers.ContextKeyAzureClient, azureClient)
 	ctx = context.WithValue(ctx, handlers.ContextKeyAzureParentAdministrativeUnitID, config.AzureParentAdministrativeUnitID)
 	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaProducer, producer)
 	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaErrorProducer, errorProducer)
+
+	// Clean up on SIGINT and SIGTERM.
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.Println("caught signal", sig)
+		cancel()
+		log.Println("canceled pending requests")
+		cleanupOnce.Do(cleanup)
+	}()
 
 	// Read messages from the topic
 	for {
@@ -106,6 +113,9 @@ func main() {
 		m, err := consumer.FetchMessage(ctx)
 		if err == io.EOF {
 			log.Println("connection closed")
+			break
+		} else if err == context.Canceled {
+			log.Println("processing canceled")
 			break
 		} else if err != nil {
 			log.Fatal("error fetching message:", err)

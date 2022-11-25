@@ -24,5 +24,5 @@ func PermanentErrorHandler(ctx context.Context, event kafkamsgs.Event, oerr erro
 	if err != nil {
 		log.Fatal("error writing message to dead letter queue", err)
 	}
-	log.Println("error while processing message, message with error written to dead letter queue", err)
+	log.Println("error while processing message, message with error written to dead letter queue:", oerr)
 }
