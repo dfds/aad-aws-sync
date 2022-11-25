@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"go.dfds.cloud/aad-aws-sync/azure"
-	"go.dfds.cloud/aad-aws-sync/capsvc"
-	"go.dfds.cloud/aad-aws-sync/util"
 	"log"
+
+	"go.dfds.cloud/aad-aws-sync/internal/azure"
+	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"

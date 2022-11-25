@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
-	"go.dfds.cloud/aad-aws-sync/azure"
-	"go.dfds.cloud/aad-aws-sync/capsvc"
-	"go.dfds.cloud/aad-aws-sync/util"
 	"log"
+
+	"go.dfds.cloud/aad-aws-sync/internal/azure"
+	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
 )
+
+const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
 func main() {
 	testData := util.LoadTestData()

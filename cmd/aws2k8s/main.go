@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"go.dfds.cloud/aad-aws-sync/aws"
-	"go.dfds.cloud/aad-aws-sync/k8s"
-	"go.dfds.cloud/aad-aws-sync/util"
-	"gopkg.in/yaml.v2"
 	"log"
 	"time"
+
+	"go.dfds.cloud/aad-aws-sync/internal/aws"
+	"go.dfds.cloud/aad-aws-sync/internal/k8s"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
+	"gopkg.in/yaml.v2"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"

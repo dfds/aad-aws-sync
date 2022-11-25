@@ -2,9 +2,10 @@ package util
 
 import (
 	"encoding/json"
-	"go.dfds.cloud/aad-aws-sync/aws"
 	"log"
 	"os"
+
+	"go.dfds.cloud/aad-aws-sync/internal/aws"
 )
 
 type TestData struct {
