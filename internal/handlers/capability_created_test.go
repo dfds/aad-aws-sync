@@ -23,9 +23,9 @@ const (
 )
 
 const (
-	testCapabilityName           string = "Sandbox-test"
-	testCapabilityId                    = "c1790f03-8b8c-4c85-98b4-86c00b588a1e"
-	testCapabilityCreatedMessage        = `
+	testCapabilityName                string = "Sandbox-test"
+	testCapabilityId                         = "c1790f03-8b8c-4c85-98b4-86c00b588a1e"
+	testCapabilityCreatedMessageValue        = `
 {
    "version": "1",
    "eventName": "capability_created",
@@ -38,6 +38,14 @@ const (
 }
 `
 )
+
+var testCapabilityCreatedMessage = kafkamsgs.Event{
+	Name:    kafkamsgs.EventNameCapabilityCreated,
+	Version: kafkamsgs.Version1,
+	Message: kafka.Message{
+		Value: []byte(testCapabilityCreatedMessageValue),
+	},
+}
 
 type testContext struct {
 	ctx context.Context
@@ -99,14 +107,7 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 		Return(nil)
 
 	// Execute the handler
-	msg := kafkamsgs.Event{
-		Name:    kafkamsgs.EventNameCapabilityCreated,
-		Version: kafkamsgs.Version1,
-		Message: kafka.Message{
-			Value: []byte(testCapabilityCreatedMessage),
-		},
-	}
-	CapabilityCreatedHandler(tc.ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, testCapabilityCreatedMessage)
 
 	// Assertion expected calls
 	tc.mockAzureClient.AssertExpectations(t)
@@ -172,14 +173,7 @@ func TestCapabilityCreatedHandlerTemporaryCreateGroupError(t *testing.T) {
 		Return(nil)
 
 	// Execute the handler
-	msg := kafkamsgs.Event{
-		Name:    kafkamsgs.EventNameCapabilityCreated,
-		Version: kafkamsgs.Version1,
-		Message: kafka.Message{
-			Value: []byte(testCapabilityCreatedMessage),
-		},
-	}
-	CapabilityCreatedHandler(tc.ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, testCapabilityCreatedMessage)
 
 	// Assertion expected calls
 	tc.mockAzureClient.AssertExpectations(t)
@@ -204,14 +198,7 @@ func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
 		Return(nil)
 
 	// Execute the handler
-	msg := kafkamsgs.Event{
-		Name:    kafkamsgs.EventNameCapabilityCreated,
-		Version: kafkamsgs.Version1,
-		Message: kafka.Message{
-			Value: []byte(testCapabilityCreatedMessage),
-		},
-	}
-	CapabilityCreatedHandler(tc.ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, testCapabilityCreatedMessage)
 
 	// Assertion expected calls
 	tc.mockAzureClient.AssertExpectations(t)
@@ -221,7 +208,7 @@ func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
 	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 
 	// Assert the expected error
-	assertWrittenErrorMessage(t, tc.mockErrorProducer, msg.Message,
+	assertWrittenErrorMessage(t, tc.mockErrorProducer, testCapabilityCreatedMessage.Message,
 		"Not Found")
 }
 
@@ -241,15 +228,7 @@ func TestCapabilityCreatedHandlerTemporaryWriteMessagesError(t *testing.T) {
 		Return(nil)
 
 	// Execute the handler
-	// TODO extract this to a var
-	msg := kafkamsgs.Event{
-		Name:    kafkamsgs.EventNameCapabilityCreated,
-		Version: kafkamsgs.Version1,
-		Message: kafka.Message{
-			Value: []byte(testCapabilityCreatedMessage),
-		},
-	}
-	CapabilityCreatedHandler(tc.ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, testCapabilityCreatedMessage)
 
 	// Assertion expected calls
 	tc.mockAzureClient.AssertExpectations(t)
@@ -278,15 +257,7 @@ func TestCapabilityCreatedHandlerNetworkWriteMessagesError(t *testing.T) {
 		Return(nil)
 
 	// Execute the handler
-	// TODO extract this to a var
-	msg := kafkamsgs.Event{
-		Name:    kafkamsgs.EventNameCapabilityCreated,
-		Version: kafkamsgs.Version1,
-		Message: kafka.Message{
-			Value: []byte(testCapabilityCreatedMessage),
-		},
-	}
-	CapabilityCreatedHandler(tc.ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, testCapabilityCreatedMessage)
 
 	// Assertion expected calls
 	tc.mockAzureClient.AssertExpectations(t)
@@ -314,15 +285,7 @@ func TestCapabilityCreatedHandlerPermanentWriteMessagesError(t *testing.T) {
 		Return(nil)
 
 	// Execute the handler
-	// TODO extract this to a var
-	msg := kafkamsgs.Event{
-		Name:    kafkamsgs.EventNameCapabilityCreated,
-		Version: kafkamsgs.Version1,
-		Message: kafka.Message{
-			Value: []byte(testCapabilityCreatedMessage),
-		},
-	}
-	CapabilityCreatedHandler(tc.ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, testCapabilityCreatedMessage)
 
 	// Assertion expected calls
 	tc.mockAzureClient.AssertExpectations(t)
@@ -332,6 +295,6 @@ func TestCapabilityCreatedHandlerPermanentWriteMessagesError(t *testing.T) {
 	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
 
 	// Assert the expected error
-	assertWrittenErrorMessage(t, tc.mockErrorProducer, msg.Message,
+	assertWrittenErrorMessage(t, tc.mockErrorProducer, testCapabilityCreatedMessage.Message,
 		"a permanent error")
 }
