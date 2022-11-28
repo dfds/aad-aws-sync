@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -44,8 +45,16 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 		ParentAdministrativeUnitId: azureParentAdministrativeUnitID,
 	}
 	createGroup := func() (*azure.CreateAdministrativeUnitGroupResponse, error) {
-		// TODO determine if the error is permanent here
-		return azureClient.CreateAdministrativeUnitGroup(ctx, createGroupRequest)
+		var apiError azure.ApiError
+		group, err := azureClient.CreateAdministrativeUnitGroup(ctx, createGroupRequest)
+		if errors.As(err, &apiError) && apiError.StatusCode >= 500 {
+			// Retry 5XX errors.
+			return nil, err
+		} else if err != nil {
+			// Assume all other errors are permanent.
+			return nil, backoff.Permanent(err)
+		}
+		return group, nil
 	}
 	createGroupBackoff := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
 	azureADGroup, err := backoff.RetryNotifyWithData[*azure.CreateAdministrativeUnitGroupResponse](createGroup, createGroupBackoff, func(err error, d time.Duration) {
