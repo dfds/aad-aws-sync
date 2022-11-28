@@ -10,7 +10,6 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/protocol"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
@@ -82,18 +81,9 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	produceResponseBackoff := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
 	produceResponse := func() error {
 		err := kafkaProducer.WriteMessages(ctx, kafka.Message{
-			Key:   []byte(azureADGroup.ID),
-			Value: resp,
-			Headers: []protocol.Header{
-				{
-					Key:   kafkamsgs.HeaderKeyVersion,
-					Value: []byte(kafkamsgs.Version1),
-				},
-				{
-					Key:   kafkamsgs.HeaderKeyEventName,
-					Value: []byte(kafkamsgs.EventNameAzureADGroupCreated),
-				},
-			},
+			Key:     []byte(azureADGroup.ID),
+			Value:   resp,
+			Headers: kafkamsgs.EventHeaders(kafkamsgs.EventNameAzureADGroupCreated, kafkamsgs.Version1),
 		})
 		if kafkautil.IsTemporaryError(err) || kafkautil.IsTransientNetworkError(err) {
 			// Disabled the retry logic within the Kafka client as we want to indefinitely retry

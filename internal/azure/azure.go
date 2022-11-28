@@ -105,13 +105,13 @@ func (c *Client) refreshAuth() {
 	c.token.token = tokenResponse.AccessToken
 }
 
-func (c *Client) prepareHttpRequest(h *http.Request) {
+func (c *Client) prepareHttpRequest(req *http.Request) {
 	c.refreshAuth()
 
-	h.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token.token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token.token))
 }
 
-func (c *Client) prepareJsonRequest(h *http.Request) {
+func (c *Client) prepareJsonRequest(req *http.Request) {
 	c.prepareHttpRequest(req)
 	req.Header.Set("Content-Type", "application/json")
 }
