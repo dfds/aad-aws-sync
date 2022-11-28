@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"syscall"
 	"testing"
 
 	"github.com/segmentio/kafka-go"
@@ -63,6 +65,25 @@ func newTestContext() *testContext {
 	return tc
 }
 
+func assertWrittenResultMessage(t *testing.T, mockProducer *kafkatest.MockKafkaProducer) {
+	resultMessage := mockProducer.Calls[0].Arguments.Get(1).(kafka.Message)
+	assert.EqualValues(t, testAzureCreatedAdministrativeUnitId, resultMessage.Key)
+	assert.JSONEq(t, `{"azureAdGroupId": "`+testAzureCreatedAdministrativeUnitId+`", "capabilityName": "`+testCapabilityName+`" }`,
+		string(resultMessage.Value))
+	assert.EqualValues(t, []protocol.Header{
+		{Key: "Version", Value: []byte("1")}, {Key: "Event Name", Value: []byte("azure_ad_group_created")}},
+		resultMessage.Headers)
+}
+
+func assertWrittenErrorMessage(t *testing.T, mockErrorProducer *kafkatest.MockKafkaProducer, originalMessage kafka.Message, expectedError string) {
+	errorMessage := mockErrorProducer.Calls[0].Arguments.Get(1).(kafka.Message)
+	assert.EqualValues(t, originalMessage.Key, errorMessage.Key)
+	assert.JSONEq(t, string(originalMessage.Value), string(errorMessage.Value))
+	assert.EqualValues(t, append(originalMessage.Headers,
+		protocol.Header{Key: "Error", Value: []byte(expectedError)}),
+		errorMessage.Headers)
+}
+
 func TestCapabilityCreatedHandler(t *testing.T) {
 	// Initiate test context
 	tc := newTestContext()
@@ -104,22 +125,7 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 	assert.True(t, createRequest.SecurityEnabled)
 
 	// Assertions regarding the result message
-	resultMessage := tc.mockProducer.Calls[0].Arguments.Get(1).(kafka.Message)
-	assert.EqualValues(t, testAzureCreatedAdministrativeUnitId, resultMessage.Key)
-	assert.JSONEq(t, `{"azureAdGroupId": "`+testAzureCreatedAdministrativeUnitId+`", "capabilityName": "Sandbox-test" }`,
-		string(resultMessage.Value))
-	assert.EqualValues(t, []protocol.Header{
-		{Key: "Version", Value: []byte("1")}, {Key: "Event Name", Value: []byte("azure_ad_group_created")}},
-		resultMessage.Headers)
-}
-
-func assertWrittenErrorMessage(t *testing.T, mockErrorProducer *kafkatest.MockKafkaProducer, originalMessage kafka.Message, expectedError string) {
-	errorMessage := mockErrorProducer.Calls[0].Arguments.Get(1).(kafka.Message)
-	assert.EqualValues(t, originalMessage.Key, errorMessage.Key)
-	assert.JSONEq(t, string(originalMessage.Value), string(errorMessage.Value))
-	assert.EqualValues(t, append(originalMessage.Headers,
-		protocol.Header{Key: "Error", Value: []byte(expectedError)}),
-		errorMessage.Headers)
+	assertWrittenResultMessage(t, tc.mockProducer)
 }
 
 func TestCapabilityCreatedHandlerFailureToDecode(t *testing.T) {
@@ -181,6 +187,9 @@ func TestCapabilityCreatedHandlerTemporaryCreateGroupError(t *testing.T) {
 	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 2) // retried
 	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
 	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+
+	// Assertions regarding the result message
+	assertWrittenResultMessage(t, tc.mockProducer)
 }
 
 func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
@@ -248,7 +257,81 @@ func TestCapabilityCreatedHandlerTemporaryWriteMessagesError(t *testing.T) {
 	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
 	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 2) // retried
 	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+
+	// Assertions regarding the result message
+	assertWrittenResultMessage(t, tc.mockProducer)
 }
 
-// TODO test write response network error
-// TODO test write response permanent error
+func TestCapabilityCreatedHandlerNetworkWriteMessagesError(t *testing.T) {
+	// Initiate test context
+	tc := newTestContext()
+
+	// Mock expected calls
+	tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Once().
+		Return(syscall.ECONNRESET)
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Return(nil)
+
+	// Execute the handler
+	// TODO extract this to a var
+	msg := kafkamsgs.Event{
+		Name:    kafkamsgs.EventNameCapabilityCreated,
+		Version: kafkamsgs.Version1,
+		Message: kafka.Message{
+			Value: []byte(testCapabilityCreatedMessage),
+		},
+	}
+	CapabilityCreatedHandler(tc.ctx, msg)
+
+	// Assertion expected calls
+	tc.mockAzureClient.AssertExpectations(t)
+	tc.mockErrorProducer.AssertExpectations(t)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 2) // retried
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+
+	// Assertions regarding the result message
+	assertWrittenResultMessage(t, tc.mockProducer)
+}
+
+func TestCapabilityCreatedHandlerPermanentWriteMessagesError(t *testing.T) {
+	// Initiate test context
+	tc := newTestContext()
+
+	// Mock expected calls
+	tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Return(errors.New("a permanent error"))
+	tc.mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Return(nil)
+
+	// Execute the handler
+	// TODO extract this to a var
+	msg := kafkamsgs.Event{
+		Name:    kafkamsgs.EventNameCapabilityCreated,
+		Version: kafkamsgs.Version1,
+		Message: kafka.Message{
+			Value: []byte(testCapabilityCreatedMessage),
+		},
+	}
+	CapabilityCreatedHandler(tc.ctx, msg)
+
+	// Assertion expected calls
+	tc.mockAzureClient.AssertExpectations(t)
+	tc.mockErrorProducer.AssertExpectations(t)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+
+	// Assert the expected error
+	assertWrittenErrorMessage(t, tc.mockErrorProducer, msg.Message,
+		"a permanent error")
+}
