@@ -18,6 +18,7 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 
 	"github.com/kelseyhightower/envconfig"
+	"github.com/stretchr/testify/mock"
 )
 
 type Config struct {
@@ -83,11 +84,8 @@ func main() {
 	defer cleanupOnce.Do(cleanup)
 
 	// Mock the Azure Client
-	azureClient := &azuretest.MockAzureClient{
-		CreateAdministrativeUnitGroupRequestMock: func(_ context.Context, _ azure.CreateAdministrativeUnitGroupRequest) (*azure.CreateAdministrativeUnitGroupResponse, error) {
-			return &azure.CreateAdministrativeUnitGroupResponse{ID: "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac"}, nil
-		},
-	}
+	azureClient := new(azuretest.MockAzureClient)
+	azureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).Return(&azure.CreateAdministrativeUnitGroupResponse{ID: "mock-aad67fcd-5a26-4e1a-98aa-bd6d4eb828ac"}, nil)
 
 	// Initiate handlers context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -137,8 +135,6 @@ func main() {
 			case kafkamsgs.Version1:
 				// Handle the event
 				handlers.CapabilityCreatedHandler(ctx, *event)
-				// Debug
-				log.Println("dump create ad group calls on mock:", azureClient.CreateAdministrativeUnitGroupRequestCalls)
 			default:
 				handlers.PermanentErrorHandler(ctx, *event, fmt.Errorf("unsupported version of the capability created event: %q\n", event.Version))
 			}

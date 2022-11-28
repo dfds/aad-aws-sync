@@ -3,16 +3,18 @@ package azuretest
 import (
 	"context"
 
+	"github.com/stretchr/testify/mock"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 )
 
+// TODO autogenerate these with mockery
+
 // MockAzureClient is used to mock the AzureClient interface.
 type MockAzureClient struct {
-	CreateAdministrativeUnitGroupRequestCalls []azure.CreateAdministrativeUnitGroupRequest
-	CreateAdministrativeUnitGroupRequestMock  func(context.Context, azure.CreateAdministrativeUnitGroupRequest) (*azure.CreateAdministrativeUnitGroupResponse, error)
+	mock.Mock
 }
 
 func (c *MockAzureClient) CreateAdministrativeUnitGroup(ctx context.Context, requestPayload azure.CreateAdministrativeUnitGroupRequest) (*azure.CreateAdministrativeUnitGroupResponse, error) {
-	c.CreateAdministrativeUnitGroupRequestCalls = append(c.CreateAdministrativeUnitGroupRequestCalls, requestPayload)
-	return c.CreateAdministrativeUnitGroupRequestMock(ctx, requestPayload)
+	args := c.Called(ctx, requestPayload)
+	return args.Get(0).(*azure.CreateAdministrativeUnitGroupResponse), args.Error(1)
 }

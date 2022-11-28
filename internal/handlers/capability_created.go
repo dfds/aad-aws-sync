@@ -15,8 +15,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 )
 
-// TODO write unit tests for this
-
 func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	log.Println("capability created handler:", event.Name, event.Version)
 
@@ -38,7 +36,6 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 		Description:     "[Automated] - aad-aws-sync",
 		DisplayName:     fmt.Sprintf("CI_SSU_Cap - %s", msg.Payload.CapabilityID),
 		MailNickname:    fmt.Sprintf("ci-ssu_cap_%s", msg.Payload.CapabilityID),
-		GroupTypes:      []interface{}{},
 		MailEnabled:     false,
 		SecurityEnabled: true,
 
