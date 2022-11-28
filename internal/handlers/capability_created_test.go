@@ -83,7 +83,7 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
 	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 
-	// Assetions regardint the request to create the AD group
+	// Assetions regarding the request to create the AD group
 	createRequest := mockAzureClient.Calls[0].Arguments.Get(1).(azure.CreateAdministrativeUnitGroupRequest)
 
 	assert.Equal(t, "CI_SSU_Cap - "+testCapabilityId, createRequest.DisplayName)
@@ -97,4 +97,50 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 	assert.EqualValues(t, testAzureCreatedAdministrativeUnitId, resultMessage.Key)
 	assert.JSONEq(t, `{"azureAdGroupId": "`+testAzureCreatedAdministrativeUnitId+`", "capabilityName": "Sandbox-test" }`, string(resultMessage.Value))
 	assert.EqualValues(t, []protocol.Header{{Key: "Version", Value: []byte("1")}, {Key: "Event Name", Value: []byte("azure_ad_group_created")}}, resultMessage.Headers)
+}
+
+func assertWrittenErrorMessage(t *testing.T, mockErrorProducer *kafkatest.MockKafkaProducer, originalMessage kafka.Message, expectedError string) {
+	errorMessage := mockErrorProducer.Calls[0].Arguments.Get(1).(kafka.Message)
+	assert.EqualValues(t, originalMessage.Key, errorMessage.Key)
+	assert.JSONEq(t, string(originalMessage.Value), string(errorMessage.Value))
+	assert.EqualValues(t, append(originalMessage.Headers,
+		protocol.Header{Key: "Error", Value: []byte(expectedError)}),
+		errorMessage.Headers)
+}
+
+func TestCapabilityCreatedHandlerFailureToDecode(t *testing.T) {
+	// Initiate test context
+	mockAzureClient := new(azuretest.MockAzureClient)
+	mockProducer := new(kafkatest.MockKafkaProducer)
+	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+
+	ctx, _ := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
+	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
+	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
+	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+
+	msg := kafkamsgs.Event{
+		Name:    kafkamsgs.EventNameCapabilityCreated,
+		Version: kafkamsgs.Version1,
+		Message: kafka.Message{
+			Value: []byte("\"invalid message json\""),
+		},
+	}
+
+	// Mock expected calls
+	mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).Return(nil)
+
+	// Execute the handler
+	CapabilityCreatedHandler(ctx, msg)
+
+	// Assertion expected calls
+	mockErrorProducer.AssertExpectations(t)
+	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 0)
+	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+
+	// Assert the expected error
+	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message,
+		"json: cannot unmarshal string into Go value of type kafkamsgs.CapabilityCreatedMessage")
 }
