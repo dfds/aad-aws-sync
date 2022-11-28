@@ -16,14 +16,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkatest"
 )
 
-// TODO test the json decoding failing
-// TODO test the create group request temp error
-// TODO test a create group request permanent error
-
-// TODO test write response temp error
-// TODO test write response network error
-// TODO test write response permanent error
-
 const (
 	testAzureParentAdministrativeUnitId  string = "test-parent-au-id-40fe95dc-2b00-4c88-a710-768d726b1ba1"
 	testAzureCreatedAdministrativeUnitId        = "test-created-au-id-c3e35512-77fe-4736-acfd-aea79d9c775f"
@@ -67,11 +59,13 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 	}
 
 	// Mock expected calls
-	createGroupCall := mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).Return(&azure.CreateAdministrativeUnitGroupResponse{
-		ID: testAzureCreatedAdministrativeUnitId,
-	}, nil)
+	createGroupCall := mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
 
-	mockProducer.On("WriteMessages", mock.Anything, mock.Anything).NotBefore(createGroupCall).Return(nil)
+	mockProducer.On("WriteMessages", mock.Anything, mock.Anything).NotBefore(createGroupCall).
+		Return(nil)
 
 	// Execute the handler
 	CapabilityCreatedHandler(ctx, msg)
@@ -95,8 +89,11 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 	// Assertions regarding the result message
 	resultMessage := mockProducer.Calls[0].Arguments.Get(1).(kafka.Message)
 	assert.EqualValues(t, testAzureCreatedAdministrativeUnitId, resultMessage.Key)
-	assert.JSONEq(t, `{"azureAdGroupId": "`+testAzureCreatedAdministrativeUnitId+`", "capabilityName": "Sandbox-test" }`, string(resultMessage.Value))
-	assert.EqualValues(t, []protocol.Header{{Key: "Version", Value: []byte("1")}, {Key: "Event Name", Value: []byte("azure_ad_group_created")}}, resultMessage.Headers)
+	assert.JSONEq(t, `{"azureAdGroupId": "`+testAzureCreatedAdministrativeUnitId+`", "capabilityName": "Sandbox-test" }`,
+		string(resultMessage.Value))
+	assert.EqualValues(t, []protocol.Header{
+		{Key: "Version", Value: []byte("1")}, {Key: "Event Name", Value: []byte("azure_ad_group_created")}},
+		resultMessage.Headers)
 }
 
 func assertWrittenErrorMessage(t *testing.T, mockErrorProducer *kafkatest.MockKafkaProducer, originalMessage kafka.Message, expectedError string) {
@@ -144,3 +141,49 @@ func TestCapabilityCreatedHandlerFailureToDecode(t *testing.T) {
 	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message,
 		"json: cannot unmarshal string into Go value of type kafkamsgs.CapabilityCreatedMessage")
 }
+
+func TestCapabilityCreatedHandlerTempCreateGroupError(t *testing.T) {
+	// Initiate test context
+	mockAzureClient := new(azuretest.MockAzureClient)
+	mockProducer := new(kafkatest.MockKafkaProducer)
+	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+
+	ctx, _ := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
+	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
+	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
+	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+
+	msg := kafkamsgs.Event{
+		Name:    kafkamsgs.EventNameCapabilityCreated,
+		Version: kafkamsgs.Version1,
+		Message: kafka.Message{
+			Value: []byte(testCapabilityCreatedMessage),
+		},
+	}
+
+	// Mock expected calls
+	createGroupCall := mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(nil, context.DeadlineExceeded)
+	mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).NotBefore(createGroupCall).
+		Return(nil)
+
+	// Execute the handler
+	CapabilityCreatedHandler(ctx, msg)
+
+	// Assertion expected calls
+	mockAzureClient.AssertExpectations(t)
+	mockErrorProducer.AssertExpectations(t)
+	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
+	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+
+	// Assert the expected error
+	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message, context.DeadlineExceeded.Error())
+}
+
+// TODO test a create group request permanent error
+
+// TODO test write response temp error
+// TODO test write response network error
+// TODO test write response permanent error

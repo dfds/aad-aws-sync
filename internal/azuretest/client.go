@@ -16,5 +16,8 @@ type MockAzureClient struct {
 
 func (c *MockAzureClient) CreateAdministrativeUnitGroup(ctx context.Context, requestPayload azure.CreateAdministrativeUnitGroupRequest) (*azure.CreateAdministrativeUnitGroupResponse, error) {
 	args := c.Called(ctx, requestPayload)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*azure.CreateAdministrativeUnitGroupResponse), args.Error(1)
 }
