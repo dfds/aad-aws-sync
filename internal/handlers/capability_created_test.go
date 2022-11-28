@@ -1,9 +1,8 @@
 package handlers
 
-// TODO write a test here
-
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/segmentio/kafka-go"
@@ -142,7 +141,49 @@ func TestCapabilityCreatedHandlerFailureToDecode(t *testing.T) {
 		"json: cannot unmarshal string into Go value of type kafkamsgs.CapabilityCreatedMessage")
 }
 
-func TestCapabilityCreatedHandlerTempCreateGroupError(t *testing.T) {
+func TestCapabilityCreatedHandlerTemporaryCreateGroupError(t *testing.T) {
+	// Initiate test context
+	mockAzureClient := new(azuretest.MockAzureClient)
+	mockProducer := new(kafkatest.MockKafkaProducer)
+	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+
+	ctx, _ := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
+	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
+	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
+	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+
+	msg := kafkamsgs.Event{
+		Name:    kafkamsgs.EventNameCapabilityCreated,
+		Version: kafkamsgs.Version1,
+		Message: kafka.Message{
+			Value: []byte(testCapabilityCreatedMessage),
+		},
+	}
+
+	// Mock expected calls
+	mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Once().
+		Return(nil, azure.ApiError{StatusCode: http.StatusServiceUnavailable})
+	mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
+	mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Return(nil)
+
+	// Execute the handler
+	CapabilityCreatedHandler(ctx, msg)
+
+	// Assertion expected calls
+	mockAzureClient.AssertExpectations(t)
+	mockErrorProducer.AssertExpectations(t)
+	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 2) // retried
+	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+}
+
+func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
 	// Initiate test context
 	mockAzureClient := new(azuretest.MockAzureClient)
 	mockProducer := new(kafkatest.MockKafkaProducer)
@@ -164,8 +205,9 @@ func TestCapabilityCreatedHandlerTempCreateGroupError(t *testing.T) {
 
 	// Mock expected calls
 	createGroupCall := mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
-		Return(nil, context.DeadlineExceeded)
-	mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).NotBefore(createGroupCall).
+		Return(nil, azure.ApiError{StatusCode: http.StatusNotFound})
+	mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		NotBefore(createGroupCall).
 		Return(nil)
 
 	// Execute the handler
@@ -179,10 +221,9 @@ func TestCapabilityCreatedHandlerTempCreateGroupError(t *testing.T) {
 	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 
 	// Assert the expected error
-	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message, context.DeadlineExceeded.Error())
+	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message,
+		"Not Found")
 }
-
-// TODO test a create group request permanent error
 
 // TODO test write response temp error
 // TODO test write response network error
