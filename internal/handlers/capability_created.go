@@ -13,6 +13,7 @@ import (
 	"github.com/segmentio/kafka-go/protocol"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
+	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 )
 
 // TODO write unit tests for this
@@ -80,8 +81,7 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	// Produce message with the result
 	produceResponseBackoff := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
 	produceResponse := func() error {
-		// TODO any permanent errors here?
-		return kafkaProducer.WriteMessages(ctx, kafka.Message{
+		err := kafkaProducer.WriteMessages(ctx, kafka.Message{
 			Key:   []byte(azureADGroup.ID),
 			Value: resp,
 			Headers: []protocol.Header{
@@ -95,9 +95,18 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 				},
 			},
 		})
+		if kafkautil.IsTemporaryError(err) || kafkautil.IsTransientNetworkError(err) {
+			// Disabled the retry logic within the Kafka client as we want to indefinitely retry
+			// on these type of errors and the backoff packages provides a more sophisticated retry
+			// implementation.
+			return err
+		} else if err != nil {
+			return backoff.Permanent(err)
+		}
+		return nil
 	}
 	err = backoff.RetryNotify(produceResponse, produceResponseBackoff, func(err error, d time.Duration) {
-		log.Printf("failed producing create azure ad respnose after %s with %s", d, err)
+		log.Printf("failed producing create azure ad response after %s with %s", d, err)
 	})
 	if err != nil {
 		PermanentErrorHandler(ctx, event, err)
