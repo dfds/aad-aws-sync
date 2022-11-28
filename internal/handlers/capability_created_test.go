@@ -37,18 +37,47 @@ const (
 `
 )
 
+type testContext struct {
+	ctx context.Context
+
+	mockAzureClient   *azuretest.MockAzureClient
+	mockProducer      *kafkatest.MockKafkaProducer
+	mockErrorProducer *kafkatest.MockKafkaProducer
+}
+
+func newTestContext() *testContext {
+	ctx, _ := context.WithCancel(context.Background())
+	tc := &testContext{
+		ctx:               ctx,
+		mockAzureClient:   new(azuretest.MockAzureClient),
+		mockProducer:      new(kafkatest.MockKafkaProducer),
+		mockErrorProducer: new(kafkatest.MockKafkaProducer),
+	}
+
+	// Initate the context
+	tc.ctx = context.WithValue(tc.ctx, ContextKeyAzureClient, tc.mockAzureClient)
+	tc.ctx = context.WithValue(tc.ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
+	tc.ctx = context.WithValue(tc.ctx, ContextKeyKafkaProducer, tc.mockProducer)
+	tc.ctx = context.WithValue(tc.ctx, ContextKeyKafkaErrorProducer, tc.mockErrorProducer)
+
+	return tc
+}
+
 func TestCapabilityCreatedHandler(t *testing.T) {
 	// Initiate test context
-	mockAzureClient := new(azuretest.MockAzureClient)
-	mockProducer := new(kafkatest.MockKafkaProducer)
-	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+	tc := newTestContext()
 
-	ctx, _ := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
-	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
-	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
-	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+	// Mock expected calls
+	createGroupCall := tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
 
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		NotBefore(createGroupCall).
+		Return(nil)
+
+	// Execute the handler
 	msg := kafkamsgs.Event{
 		Name:    kafkamsgs.EventNameCapabilityCreated,
 		Version: kafkamsgs.Version1,
@@ -56,28 +85,17 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 			Value: []byte(testCapabilityCreatedMessage),
 		},
 	}
-
-	// Mock expected calls
-	createGroupCall := mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
-		Return(&azure.CreateAdministrativeUnitGroupResponse{
-			ID: testAzureCreatedAdministrativeUnitId,
-		}, nil)
-
-	mockProducer.On("WriteMessages", mock.Anything, mock.Anything).NotBefore(createGroupCall).
-		Return(nil)
-
-	// Execute the handler
-	CapabilityCreatedHandler(ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, msg)
 
 	// Assertion expected calls
-	mockAzureClient.AssertExpectations(t)
-	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
-	mockProducer.AssertExpectations(t)
-	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
-	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+	tc.mockAzureClient.AssertExpectations(t)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
+	tc.mockProducer.AssertExpectations(t)
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 
 	// Assetions regarding the request to create the AD group
-	createRequest := mockAzureClient.Calls[0].Arguments.Get(1).(azure.CreateAdministrativeUnitGroupRequest)
+	createRequest := tc.mockAzureClient.Calls[0].Arguments.Get(1).(azure.CreateAdministrativeUnitGroupRequest)
 
 	assert.Equal(t, "CI_SSU_Cap - "+testCapabilityId, createRequest.DisplayName)
 	assert.Equal(t, "ci-ssu_cap_"+testCapabilityId, createRequest.MailNickname)
@@ -86,7 +104,7 @@ func TestCapabilityCreatedHandler(t *testing.T) {
 	assert.True(t, createRequest.SecurityEnabled)
 
 	// Assertions regarding the result message
-	resultMessage := mockProducer.Calls[0].Arguments.Get(1).(kafka.Message)
+	resultMessage := tc.mockProducer.Calls[0].Arguments.Get(1).(kafka.Message)
 	assert.EqualValues(t, testAzureCreatedAdministrativeUnitId, resultMessage.Key)
 	assert.JSONEq(t, `{"azureAdGroupId": "`+testAzureCreatedAdministrativeUnitId+`", "capabilityName": "Sandbox-test" }`,
 		string(resultMessage.Value))
@@ -106,16 +124,12 @@ func assertWrittenErrorMessage(t *testing.T, mockErrorProducer *kafkatest.MockKa
 
 func TestCapabilityCreatedHandlerFailureToDecode(t *testing.T) {
 	// Initiate test context
-	mockAzureClient := new(azuretest.MockAzureClient)
-	mockProducer := new(kafkatest.MockKafkaProducer)
-	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+	tc := newTestContext()
 
-	ctx, _ := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
-	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
-	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
-	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+	// Mock expected calls
+	tc.mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).Return(nil)
 
+	// Execute the handler
 	msg := kafkamsgs.Event{
 		Name:    kafkamsgs.EventNameCapabilityCreated,
 		Version: kafkamsgs.Version1,
@@ -123,36 +137,35 @@ func TestCapabilityCreatedHandlerFailureToDecode(t *testing.T) {
 			Value: []byte("\"invalid message json\""),
 		},
 	}
-
-	// Mock expected calls
-	mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).Return(nil)
-
-	// Execute the handler
-	CapabilityCreatedHandler(ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, msg)
 
 	// Assertion expected calls
-	mockErrorProducer.AssertExpectations(t)
-	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
-	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 0)
-	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+	tc.mockErrorProducer.AssertExpectations(t)
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 0)
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 
 	// Assert the expected error
-	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message,
+	assertWrittenErrorMessage(t, tc.mockErrorProducer, msg.Message,
 		"json: cannot unmarshal string into Go value of type kafkamsgs.CapabilityCreatedMessage")
 }
 
 func TestCapabilityCreatedHandlerTemporaryCreateGroupError(t *testing.T) {
 	// Initiate test context
-	mockAzureClient := new(azuretest.MockAzureClient)
-	mockProducer := new(kafkatest.MockKafkaProducer)
-	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+	tc := newTestContext()
 
-	ctx, _ := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
-	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
-	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
-	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+	// Mock expected calls
+	tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Once().
+		Return(nil, azure.ApiError{StatusCode: http.StatusServiceUnavailable})
+	tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Return(nil)
 
+	// Execute the handler
 	msg := kafkamsgs.Event{
 		Name:    kafkamsgs.EventNameCapabilityCreated,
 		Version: kafkamsgs.Version1,
@@ -160,41 +173,28 @@ func TestCapabilityCreatedHandlerTemporaryCreateGroupError(t *testing.T) {
 			Value: []byte(testCapabilityCreatedMessage),
 		},
 	}
-
-	// Mock expected calls
-	mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
-		Once().
-		Return(nil, azure.ApiError{StatusCode: http.StatusServiceUnavailable})
-	mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
-		Return(&azure.CreateAdministrativeUnitGroupResponse{
-			ID: testAzureCreatedAdministrativeUnitId,
-		}, nil)
-	mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
-		Return(nil)
-
-	// Execute the handler
-	CapabilityCreatedHandler(ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, msg)
 
 	// Assertion expected calls
-	mockAzureClient.AssertExpectations(t)
-	mockErrorProducer.AssertExpectations(t)
-	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 2) // retried
-	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
-	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+	tc.mockAzureClient.AssertExpectations(t)
+	tc.mockErrorProducer.AssertExpectations(t)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 2) // retried
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 }
 
 func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
 	// Initiate test context
-	mockAzureClient := new(azuretest.MockAzureClient)
-	mockProducer := new(kafkatest.MockKafkaProducer)
-	mockErrorProducer := new(kafkatest.MockKafkaProducer)
+	tc := newTestContext()
 
-	ctx, _ := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, ContextKeyAzureClient, mockAzureClient)
-	ctx = context.WithValue(ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
-	ctx = context.WithValue(ctx, ContextKeyKafkaProducer, mockProducer)
-	ctx = context.WithValue(ctx, ContextKeyKafkaErrorProducer, mockErrorProducer)
+	// Mock expected calls
+	createGroupCall := tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(nil, azure.ApiError{StatusCode: http.StatusNotFound})
+	tc.mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		NotBefore(createGroupCall).
+		Return(nil)
 
+	// Execute the handler
 	msg := kafkamsgs.Event{
 		Name:    kafkamsgs.EventNameCapabilityCreated,
 		Version: kafkamsgs.Version1,
@@ -202,26 +202,17 @@ func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
 			Value: []byte(testCapabilityCreatedMessage),
 		},
 	}
-
-	// Mock expected calls
-	createGroupCall := mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
-		Return(nil, azure.ApiError{StatusCode: http.StatusNotFound})
-	mockErrorProducer.On("WriteMessages", mock.Anything, mock.Anything).
-		NotBefore(createGroupCall).
-		Return(nil)
-
-	// Execute the handler
-	CapabilityCreatedHandler(ctx, msg)
+	CapabilityCreatedHandler(tc.ctx, msg)
 
 	// Assertion expected calls
-	mockAzureClient.AssertExpectations(t)
-	mockErrorProducer.AssertExpectations(t)
-	mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
-	mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
-	mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+	tc.mockAzureClient.AssertExpectations(t)
+	tc.mockErrorProducer.AssertExpectations(t)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 1)
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
 
 	// Assert the expected error
-	assertWrittenErrorMessage(t, mockErrorProducer, msg.Message,
+	assertWrittenErrorMessage(t, tc.mockErrorProducer, msg.Message,
 		"Not Found")
 }
 
