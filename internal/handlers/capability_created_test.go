@@ -216,6 +216,39 @@ func TestCapabilityCreatedHandlerPermanentCreateGroupError(t *testing.T) {
 		"Not Found")
 }
 
-// TODO test write response temp error
+func TestCapabilityCreatedHandlerTemporaryWriteMessagesError(t *testing.T) {
+	// Initiate test context
+	tc := newTestContext()
+
+	// Mock expected calls
+	tc.mockAzureClient.On("CreateAdministrativeUnitGroup", mock.Anything, mock.Anything).
+		Return(&azure.CreateAdministrativeUnitGroupResponse{
+			ID: testAzureCreatedAdministrativeUnitId,
+		}, nil)
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Once().
+		Return(context.DeadlineExceeded)
+	tc.mockProducer.On("WriteMessages", mock.Anything, mock.Anything).
+		Return(nil)
+
+	// Execute the handler
+	// TODO extract this to a var
+	msg := kafkamsgs.Event{
+		Name:    kafkamsgs.EventNameCapabilityCreated,
+		Version: kafkamsgs.Version1,
+		Message: kafka.Message{
+			Value: []byte(testCapabilityCreatedMessage),
+		},
+	}
+	CapabilityCreatedHandler(tc.ctx, msg)
+
+	// Assertion expected calls
+	tc.mockAzureClient.AssertExpectations(t)
+	tc.mockErrorProducer.AssertExpectations(t)
+	tc.mockAzureClient.AssertNumberOfCalls(t, "CreateAdministrativeUnitGroup", 1)
+	tc.mockProducer.AssertNumberOfCalls(t, "WriteMessages", 2) // retried
+	tc.mockErrorProducer.AssertNumberOfCalls(t, "WriteMessages", 0)
+}
+
 // TODO test write response network error
 // TODO test write response permanent error
