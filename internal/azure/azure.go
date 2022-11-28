@@ -111,6 +111,11 @@ func (c *Client) prepareHttpRequest(h *http.Request) {
 	h.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token.token))
 }
 
+func (c *Client) prepareJsonRequest(h *http.Request) {
+	c.prepareHttpRequest(req)
+	req.Header.Set("Content-Type", "application/json")
+}
+
 func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 	req, err := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/groups", nil)
 	if err != nil {
@@ -213,12 +218,11 @@ func (c *Client) CreateAdministrativeUnitGroup(ctx context.Context, requestPaylo
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
 		fmt.Sprintf("https://graph.microsoft.com/v1.0/directory/administrativeUnits/%s/members",
-			requestPayload.ParentAdministrativeUnitId), bytes.NewBuffer([]byte(serialised)))
+			requestPayload.ParentAdministrativeUnitId), bytes.NewBuffer(serialised))
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
-	req.Header.Set("Content-Type", "application/json")
+	c.prepareJsonRequest(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -283,8 +287,7 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 	if err != nil {
 		return err
 	}
-	c.prepareHttpRequest(req)
-	req.Header.Set("Content-Type", "application/json")
+	c.prepareJsonRequest(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -501,9 +504,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
-
-	req.Header.Set("Content-Type", "application/json")
+	c.prepareJsonRequest(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
