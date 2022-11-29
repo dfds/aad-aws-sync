@@ -10,8 +10,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 )
 
-// TODO write unit tests for this router
-
 // ConsumeMessages fetches messages from a Kafka topic, detects events, and
 // routes the events to the appropriate handler.
 // The handlers are expected to continue retrying on temporary errors,
@@ -31,7 +29,8 @@ func ConsumeMessages(ctx context.Context) {
 			log.Println("processing canceled")
 			break
 		} else if err != nil {
-			log.Fatal("error fetching message:", err)
+			log.Println("error fetching message:", err)
+			break
 		}
 		log.Printf("message at topic/partition/offset %v/%v/%v: %s = %s : %v\n", msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value), msg.Headers)
 

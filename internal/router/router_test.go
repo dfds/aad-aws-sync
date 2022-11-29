@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 
@@ -106,7 +107,7 @@ func TestConsumeMessages(t *testing.T) {
 		Once().
 		Return(nil)
 
-	// Execute the handler
+	// Execute the router
 	ConsumeMessages(tc.ctx)
 
 	// Assertion expected calls
@@ -147,7 +148,7 @@ func TestConsumeMessagesUnsupportedVersion(t *testing.T) {
 		Once().
 		Return(nil)
 
-	// Execute the handler
+	// Execute the router
 	ConsumeMessages(tc.ctx)
 
 	// Assertion expected calls
@@ -186,7 +187,7 @@ func TestConsumeMessagesUnsupportedEvent(t *testing.T) {
 		Once().
 		Return(nil)
 
-	// Execute the handler
+	// Execute the router
 	ConsumeMessages(tc.ctx)
 
 	// Assertion expected calls
@@ -227,7 +228,7 @@ func TestConsumeMessagesUndeterminedEventName(t *testing.T) {
 		Once().
 		Return(nil)
 
-	// Execute the handler
+	// Execute the router
 	ConsumeMessages(tc.ctx)
 
 	// Assertion expected calls
@@ -241,6 +242,44 @@ func TestConsumeMessagesUndeterminedEventName(t *testing.T) {
 	assertHandledErrorEvent(t, tc.mockEventHandlers, msg, "unable to determine an event name")
 }
 
-// TODO test canceling of context
+func TestConsumeMessagesCanceled(t *testing.T) {
+	// Initiate test context
+	tc := newTestRouterContext()
 
-// TODO test error fetching message, is that retried if so how much?
+	// Mock expected calls
+	tc.mockConsumer.
+		On("FetchMessage", mock.Anything, mock.Anything).
+		Once().
+		Return(kafka.Message{}, context.Canceled)
+
+	// Execute the router
+	ConsumeMessages(tc.ctx)
+
+	// Assertion expected calls
+	tc.mockConsumer.AssertExpectations(t)
+	tc.mockConsumer.AssertNumberOfCalls(t, "FetchMessage", 1)
+	tc.mockConsumer.AssertNumberOfCalls(t, "CommitMessages", 0)
+	tc.mockEventHandlers.AssertNumberOfCalls(t, "CapabilityCreatedHandler", 0)
+	tc.mockEventHandlers.AssertNumberOfCalls(t, "PermanentErrorHandler", 0)
+}
+
+func TestConsumeMessagesFetchError(t *testing.T) {
+	// Initiate test context
+	tc := newTestRouterContext()
+
+	// Mock expected calls
+	tc.mockConsumer.
+		On("FetchMessage", mock.Anything, mock.Anything).
+		Once().
+		Return(kafka.Message{}, errors.New("something happened"))
+
+	// Execute the router
+	ConsumeMessages(tc.ctx)
+
+	// Assertion expected calls
+	tc.mockConsumer.AssertExpectations(t)
+	tc.mockConsumer.AssertNumberOfCalls(t, "FetchMessage", 1)
+	tc.mockConsumer.AssertNumberOfCalls(t, "CommitMessages", 0)
+	tc.mockEventHandlers.AssertNumberOfCalls(t, "CapabilityCreatedHandler", 0)
+	tc.mockEventHandlers.AssertNumberOfCalls(t, "PermanentErrorHandler", 0)
+}
