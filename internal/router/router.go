@@ -51,7 +51,9 @@ func ConsumeMessages(ctx context.Context) {
 				// Handle the event
 				handlers.CapabilityCreatedHandler(ctx, *event)
 			default:
-				handlers.PermanentErrorHandler(ctx, *event, fmt.Errorf("unsupported version of the capability created event: %q\n", event.Version))
+				handlers.PermanentErrorHandler(ctx, *event,
+					fmt.Errorf("unsupported version of the capability created event: %q",
+						event.Version))
 			}
 		default:
 			// Skip unhandled event
