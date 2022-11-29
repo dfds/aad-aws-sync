@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	ContextKeyAzureClient int = iota
-	ContextKeyAzureParentAdministrativeUnitID
-	ContextKeyKafkaProducer
-	ContextKeyKafkaErrorProducer
+	ContextKeyAzureClient                     string = "handlers_context_key_azure_client"
+	ContextKeyAzureParentAdministrativeUnitID        = "handlers_context_key_azure_parent_administrative_unit_id"
+	ContextKeyKafkaProducer                          = "handlers_context_key_kafka_producer"
+	ContextKeyKafkaErrorProducer                     = "handlers_context_key_kafka_error_producer"
 )
 
 func GetAzureClient(ctx context.Context) AzureClient {
