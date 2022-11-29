@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.dfds.cloud/aad-aws-sync/internal/handlerstest"
+	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkatest"
 )
 
@@ -41,7 +43,6 @@ func newTestRouterContext() *testRouterContext {
 
 // TODO test unhandled event, no error
 
-// TODO test proper version of an event
 // TODO test unhandled versions of an event
 
 const (
@@ -59,6 +60,14 @@ const (
 }
 `
 )
+
+func assertHandledEvent(t *testing.T, mockEventHandlers *handlerstest.MockEventHandlers,
+	expectedMessage kafka.Message, expectedEventName, expectedEventVersion string) {
+	handledEvent := mockEventHandlers.Calls[0].Arguments.Get(1).(kafkamsgs.Event)
+	assert.EqualValues(t, expectedMessage, handledEvent.Message)
+	assert.Equal(t, expectedEventName, handledEvent.Name)
+	assert.Equal(t, expectedEventVersion, handledEvent.Version)
+}
 
 func TestConsumeMessages(t *testing.T) {
 	// Initiate test context
@@ -78,14 +87,14 @@ func TestConsumeMessages(t *testing.T) {
 		On("FetchMessage", mock.Anything, mock.Anything).
 		Once().
 		Return(kafka.Message{}, io.EOF)
-	tc.mockConsumer.
-		On("CommitMessages", mock.Anything, mock.Anything).
-		Once().
-		Return(nil)
-
-	tc.mockEventHandlers.On("CapabilityCreatedHandler", mock.Anything, mock.Anything).
+	handlerCall := tc.mockEventHandlers.On("CapabilityCreatedHandler", mock.Anything, mock.Anything).
 		NotBefore(fetchMessageCall).
 		Once()
+	tc.mockConsumer.
+		On("CommitMessages", mock.Anything, mock.Anything).
+		NotBefore(handlerCall).
+		Once().
+		Return(nil)
 
 	// Execute the handler
 	ConsumeMessages(tc.ctx)
@@ -97,5 +106,6 @@ func TestConsumeMessages(t *testing.T) {
 	tc.mockEventHandlers.AssertExpectations(t)
 	tc.mockEventHandlers.AssertNumberOfCalls(t, "CapabilityCreatedHandler", 1)
 
-	// TODO assertions about the handler call
+	// Assertions regarding the handled event
+	assertHandledEvent(t, tc.mockEventHandlers, msg, "capability_created", "1")
 }
