@@ -35,14 +35,6 @@ func newTestRouterContext() *testRouterContext {
 	return tc
 }
 
-// TODO test canceling of context
-
-// TODO test error fetching message, is that retried if so how much?
-
-// TODO test undetermined event name
-
-// TODO test unhandled event, no error
-
 const (
 	testCapabilityCreatedMessageKey   string = "c1790f03-8b8c-4c85-98b4-86c00b588a1e"
 	testCapabilityCreatedMessageValue        = `
@@ -168,3 +160,87 @@ func TestConsumeMessagesUnsupportedVersion(t *testing.T) {
 	// Assertions regarding the handled event
 	assertHandledErrorEvent(t, tc.mockEventHandlers, msg, "unsupported version of the capability created event: \"unsupported\"")
 }
+
+func TestConsumeMessagesUnsupportedEvent(t *testing.T) {
+	// Initiate test context
+	tc := newTestRouterContext()
+
+	msg := kafka.Message{
+		Headers: kafkamsgs.EventHeaders("unsupported_event", "1"),
+		Key:     []byte("test-key-f82e4bf8-f0a4-4007-9175-5f9bb6bd96f4"),
+		Value:   []byte("the event payload"),
+	}
+
+	// Mock expected calls
+	fetchMessageCall := tc.mockConsumer.
+		On("FetchMessage", mock.Anything, mock.Anything).
+		Once().
+		Return(msg, nil)
+	tc.mockConsumer.
+		On("FetchMessage", mock.Anything, mock.Anything).
+		Once().
+		Return(kafka.Message{}, io.EOF)
+	tc.mockConsumer.
+		On("CommitMessages", mock.Anything, mock.Anything).
+		NotBefore(fetchMessageCall).
+		Once().
+		Return(nil)
+
+	// Execute the handler
+	ConsumeMessages(tc.ctx)
+
+	// Assertion expected calls
+	tc.mockConsumer.AssertExpectations(t)
+	tc.mockConsumer.AssertNumberOfCalls(t, "FetchMessage", 2)
+	tc.mockConsumer.AssertNumberOfCalls(t, "CommitMessages", 1)
+	tc.mockEventHandlers.AssertExpectations(t)
+	// Should not publish an error in this case
+	tc.mockEventHandlers.AssertNumberOfCalls(t, "PermanentErrorHandler", 0)
+}
+
+func TestConsumeMessagesUndeterminedEventName(t *testing.T) {
+	// Initiate test context
+	tc := newTestRouterContext()
+
+	msg := kafka.Message{
+		Key: []byte("test-key-46b19124-f8cc-4c60-afc2-51ab8ad05c92"),
+		// No way to determine event name and version from payload
+		// or headers.
+		Value: []byte("there is no event metadata here"),
+	}
+
+	// Mock expected calls
+	fetchMessageCall := tc.mockConsumer.
+		On("FetchMessage", mock.Anything, mock.Anything).
+		Once().
+		Return(msg, nil)
+	tc.mockConsumer.
+		On("FetchMessage", mock.Anything, mock.Anything).
+		Once().
+		Return(kafka.Message{}, io.EOF)
+	handlerCall := tc.mockEventHandlers.On("PermanentErrorHandler", mock.Anything, mock.Anything, mock.Anything).
+		NotBefore(fetchMessageCall).
+		Once()
+	tc.mockConsumer.
+		On("CommitMessages", mock.Anything, mock.Anything).
+		NotBefore(handlerCall).
+		Once().
+		Return(nil)
+
+	// Execute the handler
+	ConsumeMessages(tc.ctx)
+
+	// Assertion expected calls
+	tc.mockConsumer.AssertExpectations(t)
+	tc.mockConsumer.AssertNumberOfCalls(t, "FetchMessage", 2)
+	tc.mockConsumer.AssertNumberOfCalls(t, "CommitMessages", 1)
+	tc.mockEventHandlers.AssertExpectations(t)
+	tc.mockEventHandlers.AssertNumberOfCalls(t, "PermanentErrorHandler", 1)
+
+	// Assertions regarding the handled event
+	assertHandledErrorEvent(t, tc.mockEventHandlers, msg, "unable to determine an event name")
+}
+
+// TODO test canceling of context
+
+// TODO test error fetching message, is that retried if so how much?

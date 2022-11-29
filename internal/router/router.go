@@ -39,7 +39,7 @@ func ConsumeMessages(ctx context.Context) {
 		event := kafkamsgs.NewEventFromMessage(msg)
 		if event == nil || event.Name == "" {
 			// Handle undetermined event name
-			handlers.PermanentErrorHandler(ctx, *event, errors.New("unable to detect an event name"))
+			handlers.PermanentErrorHandler(ctx, *event, errors.New("unable to determine an event name"))
 			goto CommitOffset
 		}
 
