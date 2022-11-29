@@ -25,6 +25,7 @@ const (
 const (
 	testCapabilityName                string = "Sandbox-test"
 	testCapabilityId                         = "c1790f03-8b8c-4c85-98b4-86c00b588a1e"
+	testCapabilityCreatedMessageKey          = "c1790f03-8b8c-4c85-98b4-86c00b588a1e"
 	testCapabilityCreatedMessageValue        = `
 {
    "version": "1",
@@ -64,7 +65,7 @@ func newTestContext() *testContext {
 		mockErrorProducer: new(kafkatest.MockKafkaProducer),
 	}
 
-	// Initate the context
+	// Initiate the context
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyAzureClient, tc.mockAzureClient)
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyKafkaProducer, tc.mockProducer)

@@ -10,14 +10,14 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 )
 
-// TODO integrate this into the main event handlers command
+// TODO write unit tests for this router
 
-// Read reads messages from a Kafka topic, detects events, and routes
-// the events to the appropriate handler.
+// ConsumeMessages fetches messages from a Kafka topic, detects events, and
+// routes the events to the appropriate handler.
 // The handlers are expected to continue retrying on temporary errors,
 // while permanent errors are expected to be written to a dead letter
 // queue.
-func Read(ctx context.Context) {
+func ConsumeMessages(ctx context.Context) {
 	consumer := GetKafkaConsumer(ctx)
 	handlers := GetEventHandlers(ctx)
 
