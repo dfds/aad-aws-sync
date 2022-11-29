@@ -145,7 +145,6 @@ func main() {
 
 		// Commit offset to the consumer group
 	CommitOffset:
-		// TODO does this require retry logic?
 		if err := consumer.CommitMessages(ctx, m); err != nil {
 			log.Fatal("failed to commit offset:", err)
 		}
