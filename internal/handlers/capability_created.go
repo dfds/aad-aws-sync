@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -13,10 +12,12 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
+	"go.uber.org/zap"
 )
 
 func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
-	log.Println("capability created handler:", event.Name, event.Version)
+	log := GetLogger(ctx)
+	log.Debug("Handle capability created event")
 
 	// Parse the payload
 	var msg kafkamsgs.CapabilityCreatedMessage
@@ -55,7 +56,7 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 	}
 	createGroupBackoff := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
 	azureADGroup, err := backoff.RetryNotifyWithData[*azure.CreateAdministrativeUnitGroupResponse](createGroup, createGroupBackoff, func(err error, d time.Duration) {
-		log.Printf("failed creating group after %s with %s", d, err)
+		log.Warn("Failed creating group", zap.Duration("backoff", d), zap.Error(err))
 	})
 	if err != nil {
 		// Hit a permanent error, send it off to the dead letter queue
@@ -93,7 +94,7 @@ func CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
 		return nil
 	}
 	err = backoff.RetryNotify(produceResponse, produceResponseBackoff, func(err error, d time.Duration) {
-		log.Printf("failed producing create azure ad response after %s with %s", d, err)
+		log.Warn("Failed producing Azure AD creation event ", zap.Duration("backoff", d), zap.Error(err))
 	})
 	if err != nil {
 		PermanentErrorHandler(ctx, event, err)
