@@ -5,14 +5,20 @@ import (
 
 	"github.com/segmentio/kafka-go"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
+	"go.uber.org/zap"
 )
 
 const (
-	ContextKeyAzureClient                     string = "handlers_context_key_azure_client"
+	ContextKeyLogger                          string = "context_key_logger"
+	ContextKeyAzureClient                            = "handlers_context_key_azure_client"
 	ContextKeyAzureParentAdministrativeUnitID        = "handlers_context_key_azure_parent_administrative_unit_id"
 	ContextKeyKafkaProducer                          = "handlers_context_key_kafka_producer"
 	ContextKeyKafkaErrorProducer                     = "handlers_context_key_kafka_error_producer"
 )
+
+func GetLogger(ctx context.Context) *zap.Logger {
+	return ctx.Value(ContextKeyLogger).(*zap.Logger)
+}
 
 func GetAzureClient(ctx context.Context) AzureClient {
 	return ctx.Value(ContextKeyAzureClient).(AzureClient)

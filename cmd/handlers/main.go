@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -17,9 +16,16 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
+)
+
+const (
+	DevelopmentEnvironment string = "development"
+	ProductionEnvironment         = "production"
 )
 
 type Config struct {
+	Environment                     string `default:"development"`
 	AzureParentAdministrativeUnitID string `envconfig:"azure_parent_administrative_unit_id",required:"true"`
 }
 
@@ -36,35 +42,49 @@ func (_ eventHandlers) CapabilityCreatedHandler(ctx context.Context, event kafka
 }
 
 func main() {
+	// Initiate the logger
+	log := zap.Must(zap.NewDevelopment())
+
 	// Process configurations
 	var config Config
 	err := envconfig.Process("main", &config)
 	if err != nil {
-		log.Fatal("failed to process main configurations:", err)
+		log.Fatal("Failed to process main configurations", zap.Error(err))
+	}
+
+	// Switch logging to configured environment
+	switch config.Environment {
+	case ProductionEnvironment:
+		log = zap.Must(zap.NewProduction())
+	case DevelopmentEnvironment:
+		// no op
+	default:
+		log.Fatal("Unexpected environment specified",
+			zap.String("environment", config.Environment))
 	}
 
 	var authConfig kafkautil.AuthConfig
 	err = envconfig.Process("sasl_plain", &authConfig)
 	if err != nil {
-		log.Fatal("failed to process auth configurations:", err)
+		log.Fatal("Failed to process auth configurations", zap.Error(err))
 	}
 
 	var consumerConfig kafkautil.ConsumerConfig
 	err = envconfig.Process("consumer", &consumerConfig)
 	if err != nil {
-		log.Fatal("failed to process consumer configurations:", err)
+		log.Fatal("Failed to process consumer configurations", zap.Error(err))
 	}
 
 	var producerConfig kafkautil.ProducerConfig
 	err = envconfig.Process("producer", &producerConfig)
 	if err != nil {
-		log.Fatal("failed to process producer configurations:", err)
+		log.Fatal("Failed to process producer configurations", zap.Error(err))
 	}
 
 	var errorProducerConfig kafkautil.ProducerConfig
 	err = envconfig.Process("error_producer", &errorProducerConfig)
 	if err != nil {
-		log.Fatal("failed to process error producer configurations:", err)
+		log.Fatal("Failed to process error producer configurations", zap.Error(err))
 	}
 
 	// Iniate the dialer
@@ -77,11 +97,11 @@ func main() {
 	// to rebalance.
 	var cleanupOnce sync.Once
 	cleanup := func() {
-		log.Println("closing consumer")
+		log.Debug("Closing Kafka consumer")
 		if err := consumer.Close(); err != nil {
-			log.Fatal("failed to close kafka reader:", err)
+			log.Fatal("Failed to close Kafka consumer", zap.Error(err))
 		}
-		log.Println("consumer closed")
+		log.Debug("Kafka consumer has been closed")
 	}
 	defer cleanupOnce.Do(cleanup)
 
@@ -106,15 +126,16 @@ func main() {
 	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaErrorProducer, errorProducer)
 	ctx = context.WithValue(ctx, router.ContextKeyKafkaConsumer, consumer)
 	ctx = context.WithValue(ctx, router.ContextKeyEventHandlers, eventHandlers{})
+	ctx = context.WithValue(ctx, router.ContextKeyLogger, log)
 
 	// Clean up on SIGINT and SIGTERM.
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		log.Println("caught signal", sig)
+		log.Debug("Caught signal", zap.String("signal", sig.String()))
 		cancel()
-		log.Println("canceled pending requests")
+		log.Info("Canceling pending requests")
 		cleanupOnce.Do(cleanup)
 	}()
 

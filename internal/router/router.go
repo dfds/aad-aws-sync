@@ -3,12 +3,16 @@ package router
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"log"
 
+	"go.dfds.cloud/aad-aws-sync/internal/handlers"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
+	"go.uber.org/zap"
 )
+
+// ErrUnsupportedEventVersion is returned when the detected version of the
+// event is not supported by any of the existing handlers.
+var ErrUnsupportedEventVersion = errors.New("unsupported event version")
 
 // ConsumeMessages fetches messages from a Kafka topic, detects events, and
 // routes the events to the appropriate handler.
@@ -16,31 +20,48 @@ import (
 // while permanent errors are expected to be written to a dead letter
 // queue.
 func ConsumeMessages(ctx context.Context) {
+	log := GetLogger(ctx)
 	consumer := GetKafkaConsumer(ctx)
-	handlers := GetEventHandlers(ctx)
+	eventHandlers := GetEventHandlers(ctx)
+
+	log.Info("Begin consuming messages")
+	defer log.Info("Stopped consuming messages")
 
 	for {
-		log.Println("fetch messages")
+		log.Debug("Fetch message")
 		msg, err := consumer.FetchMessage(ctx)
 		if err == io.EOF {
-			log.Println("connection closed")
+			log.Info("Connection closed")
 			break
 		} else if err == context.Canceled {
-			log.Println("processing canceled")
+			log.Info("Processing canceled")
 			break
 		} else if err != nil {
-			log.Println("error fetching message:", err)
+			log.Error("Error fetching message", zap.Error(err))
 			break
 		}
-		log.Printf("message at topic/partition/offset %v/%v/%v: %s = %s : %v\n", msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value), msg.Headers)
+		msgLog := log.With(zap.String("topic", msg.Topic),
+			zap.Int("partition", msg.Partition),
+			zap.Int64("offset", msg.Offset),
+			zap.String("key", string(msg.Key)),
+			zap.String("value", string(msg.Value)))
+		msgLog.Debug("Message fetched")
 
 		// Parse event metadata from the message to determine if we are expected to handle it
 		event := kafkamsgs.NewEventFromMessage(msg)
+		var eventLog *zap.Logger
+		var eventCtx context.Context
 		if event == nil || event.Name == "" {
 			// Handle undetermined event name
-			handlers.PermanentErrorHandler(ctx, *event, errors.New("unable to determine an event name"))
+			eventHandlers.PermanentErrorHandler(context.WithValue(ctx, handlers.ContextKeyLogger, msgLog),
+				*event, errors.New("unable to determine an event name"))
 			goto CommitOffset
 		}
+
+		// Initiate the event logger and context
+		eventLog = msgLog.With(zap.String("name", event.Name), zap.String("version", event.Version))
+		eventCtx = context.WithValue(ctx, handlers.ContextKeyLogger, eventLog)
+		eventLog.Info("Event detected")
 
 		// Route the event to the appropriate handler based on event name and version
 		switch event.Name {
@@ -48,21 +69,22 @@ func ConsumeMessages(ctx context.Context) {
 			switch event.Version {
 			case kafkamsgs.Version1:
 				// Handle the event
-				handlers.CapabilityCreatedHandler(ctx, *event)
+				eventLog.Debug("Handling event")
+				eventHandlers.CapabilityCreatedHandler(eventCtx, *event)
 			default:
-				handlers.PermanentErrorHandler(ctx, *event,
-					fmt.Errorf("unsupported version of the capability created event: %q",
-						event.Version))
+				eventLog.Error("Unsupported version of the capability created event")
+				eventHandlers.PermanentErrorHandler(eventCtx, *event,
+					ErrUnsupportedEventVersion)
 			}
 		default:
 			// Skip unhandled event
-			log.Printf("skip processing unhandled event: %q\n", event.Name)
+			eventLog.Info("Skip processing unhandled event")
 		}
 
 		// Commit offset to the consumer group
 	CommitOffset:
 		if err := consumer.CommitMessages(ctx, msg); err != nil {
-			log.Fatal("failed to commit offset:", err)
+			log.Error("Failed to commit offset", zap.Error(err))
 		}
 	}
 }

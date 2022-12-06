@@ -15,6 +15,7 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/azuretest"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkatest"
+	"go.uber.org/zap"
 )
 
 const (
@@ -66,6 +67,7 @@ func newTestContext() *testContext {
 	}
 
 	// Initiate the context
+	tc.ctx = context.WithValue(tc.ctx, ContextKeyLogger, zap.NewNop())
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyAzureClient, tc.mockAzureClient)
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyAzureParentAdministrativeUnitID, testAzureParentAdministrativeUnitId)
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyKafkaProducer, tc.mockProducer)

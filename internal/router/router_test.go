@@ -12,6 +12,7 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/handlerstest"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkatest"
+	"go.uber.org/zap"
 )
 
 type testRouterContext struct {
@@ -30,6 +31,7 @@ func newTestRouterContext() *testRouterContext {
 	}
 
 	// Initiate the context
+	tc.ctx = context.WithValue(tc.ctx, ContextKeyLogger, zap.NewNop())
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyKafkaConsumer, tc.mockConsumer)
 	tc.ctx = context.WithValue(tc.ctx, ContextKeyEventHandlers, tc.mockEventHandlers)
 
@@ -159,7 +161,7 @@ func TestConsumeMessagesUnsupportedVersion(t *testing.T) {
 	tc.mockEventHandlers.AssertNumberOfCalls(t, "PermanentErrorHandler", 1)
 
 	// Assertions regarding the handled event
-	assertHandledErrorEvent(t, tc.mockEventHandlers, msg, "unsupported version of the capability created event: \"unsupported\"")
+	assertHandledErrorEvent(t, tc.mockEventHandlers, msg, ErrUnsupportedEventVersion.Error())
 }
 
 func TestConsumeMessagesUnsupportedEvent(t *testing.T) {
