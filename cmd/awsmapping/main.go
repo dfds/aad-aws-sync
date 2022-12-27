@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	dconfig "go.dfds.cloud/aad-aws-sync/internal/config"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
@@ -9,14 +10,16 @@ import (
 	"log"
 
 	"go.dfds.cloud/aad-aws-sync/internal/aws"
-	"go.dfds.cloud/aad-aws-sync/internal/util"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
 func main() {
-	testData := util.LoadTestData()
+	conf, err := dconfig.LoadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("eu-west-1"), config.WithHTTPClient(aws.CreateHttpClientWithoutKeepAlive()))
 	if err != nil {
@@ -25,17 +28,17 @@ func main() {
 
 	ssoClient := ssoadmin.NewFromConfig(cfg)
 
-	manageSso := aws.InitManageSso(cfg, testData.Aws.IdentityStoreArn)
+	manageSso := aws.InitManageSso(cfg, conf.Aws.IdentityStoreArn)
 
-	accountsWithMissingPermissionSet, err := manageSso.GetAccountsMissingCapabilityPermissionSet(ssoClient, testData.Aws.SsoInstanceArn, testData.Aws.CapabilityPermissionSetArn, CAPABILITY_GROUP_PREFIX, testData.Aws.AccountNamePrefix)
+	accountsWithMissingPermissionSet, err := manageSso.GetAccountsMissingCapabilityPermissionSet(ssoClient, conf.Aws.SsoInstanceArn, conf.Aws.CapabilityPermissionSetArn, CAPABILITY_GROUP_PREFIX, conf.Aws.AccountNamePrefix)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for _, resp := range accountsWithMissingPermissionSet {
 		_, err := ssoClient.CreateAccountAssignment(context.TODO(), &ssoadmin.CreateAccountAssignmentInput{
-			InstanceArn:      &testData.Aws.SsoInstanceArn,
-			PermissionSetArn: &testData.Aws.CapabilityPermissionSetArn,
+			InstanceArn:      &conf.Aws.SsoInstanceArn,
+			PermissionSetArn: &conf.Aws.CapabilityPermissionSetArn,
 			PrincipalId:      resp.Group.GroupId,
 			PrincipalType:    "GROUP",
 			TargetId:         resp.Account.Id,
