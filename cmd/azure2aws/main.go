@@ -6,14 +6,11 @@ import (
 	"log"
 
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
-	"go.dfds.cloud/aad-aws-sync/internal/util"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
-const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
 func main() {
-	testData := util.LoadTestData()
 	conf, err := config.LoadConfig()
 	if err != nil {
 		log.Fatal(err)
@@ -25,7 +22,7 @@ func main() {
 		ClientSecret: conf.Azure.ClientSecret,
 	})
 
-	appRoles, err := azClient.GetApplicationRoles(testData.Azure.ApplicationId)
+	appRoles, err := azClient.GetApplicationRoles(conf.Azure.ApplicationId)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,12 +32,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	appAssignments, err := azClient.GetAssignmentsForApplication(testData.Azure.ApplicationObjectId)
+	appAssignments, err := azClient.GetAssignmentsForApplication(conf.Azure.ApplicationObjectId)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	groups, err := azClient.GetGroups(CAPABILITY_GROUP_PREFIX)
+	groups, err := azClient.GetGroups(azure.AZURE_CAPABILITY_GROUP_PREFIX)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,7 +48,7 @@ func main() {
 		// If group is not already assigned to enterprise application, assign them.
 		if !appAssignments.ContainsGroup(group.DisplayName) {
 			fmt.Printf("Group %s has not been assigned to application yet, assigning.\n", group.DisplayName)
-			_, err := azClient.AssignGroupToApplication(testData.Azure.ApplicationObjectId, group.ID, appRoleId)
+			_, err := azClient.AssignGroupToApplication(conf.Azure.ApplicationObjectId, group.ID, appRoleId)
 			if err != nil {
 				log.Fatal(err)
 			}
