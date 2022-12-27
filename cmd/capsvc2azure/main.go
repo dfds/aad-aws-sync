@@ -21,7 +21,13 @@ func main() {
 
 	groupsInAzure := make(map[string]*azure.Group)
 	capabilitiesByRootId := make(map[string]*capsvc.GetCapabilitiesResponseContextCapability)
-	client := capsvc.NewCapSvcClient(conf.CapSvc.Host)
+	client := capsvc.NewCapSvcClient(capsvc.Config{
+		Host:         conf.CapSvc.Host,
+		TenantId:     conf.Azure.TenantId,
+		ClientId:     conf.Azure.ClientId,
+		ClientSecret: conf.Azure.ClientSecret,
+		Scope:        conf.CapSvc.TokenScope,
+	})
 
 	capabilities, err := client.GetCapabilities()
 	if err != nil {
@@ -88,8 +94,8 @@ func main() {
 			createGroupRequest := azure.CreateAdministrativeUnitGroupRequest{
 				OdataType:       "#Microsoft.Graph.Group",
 				Description:     "[Automated] - aad-aws-sync",
-				DisplayName:     fmt.Sprintf("CI_SSU_Cap - %s", rootId),
-				MailNickname:    fmt.Sprintf("ci-ssu_cap_%s", rootId),
+				DisplayName:     azure.GenerateAzureGroupDisplayName(rootId),
+				MailNickname:    azure.GenerateAzureGroupMailPrefix(rootId),
 				GroupTypes:      []interface{}{},
 				MailEnabled:     false,
 				SecurityEnabled: true,

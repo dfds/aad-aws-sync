@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/config"
 	"log"
 
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
@@ -13,11 +14,15 @@ const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
 func main() {
 	testData := util.LoadTestData()
+	conf, err := config.LoadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	azClient := azure.NewAzureClient(azure.Config{
-		TenantId:     testData.Azure.TenantId,
-		ClientId:     testData.Azure.ClientId,
-		ClientSecret: testData.Azure.ClientSecret,
+		TenantId:     conf.Azure.TenantId,
+		ClientId:     conf.Azure.ClientId,
+		ClientSecret: conf.Azure.ClientSecret,
 	})
 
 	appRoles, err := azClient.GetApplicationRoles(testData.Azure.ApplicationId)

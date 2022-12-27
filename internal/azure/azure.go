@@ -5,22 +5,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"io"
+	"k8s.io/utils/env"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
-
-	"k8s.io/utils/env"
 )
 
 // TODO look into using: https://github.com/microsoftgraph/msgraph-sdk-go
 
 type Client struct {
-	httpClient *http.Client
-	config     Config
-	token      *BearerToken
+	httpClient  *http.Client
+	tokenClient *util.TokenClient
+	config      Config
 }
 
 type Config struct {
@@ -29,42 +28,17 @@ type Config struct {
 	ClientSecret string `json:"clientSecret"`
 }
 
-type BearerToken struct {
-	token     string
-	expiresIn int64
-}
-
-type RefreshAuthResponse struct {
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int64  `json:"expires_in"`
-	ExtExpiresIn int64  `json:"ext_expires_in"`
-	AccessToken  string `json:"access_token"`
-}
-
-func (b *BearerToken) IsExpired() bool {
-	if b.token == "" {
-		return true
-	}
-
-	currentTime := time.Now()
-	tokenExpirationTime := time.Unix(b.expiresIn, 0)
-	return currentTime.After(tokenExpirationTime)
-}
-
-func (c *Client) refreshAuth() {
+func (c *Client) RefreshAuth() {
 	envToken := env.GetString("AAS_AZURE_TOKEN", "")
 	if envToken != "" {
-		c.token = &BearerToken{token: envToken}
+		c.tokenClient.Token = util.NewBearerToken(envToken)
 		return
 	}
 
-	if c.token != nil {
-		if !c.token.IsExpired() {
-			//fmt.Println("Token has not expired, reusing token from cache")
-			return
-		}
-	}
+	c.tokenClient.RefreshAuth()
+}
 
+func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
 	reqPayload := url.Values{}
 	reqPayload.Set("client_id", c.config.ClientId)
 	reqPayload.Set("grant_type", "client_credentials")
@@ -73,47 +47,48 @@ func (c *Client) refreshAuth() {
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", c.config.TenantId), strings.NewReader(reqPayload.Encode()))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		log.Fatalf("Unexpected response from token request.\nStatus code: %d\nContent: %s\n", resp.StatusCode, string(rawData))
+		return nil, err
 	}
 
-	var tokenResponse RefreshAuthResponse
+	var tokenResponse *util.RefreshAuthResponse
 
 	err = json.Unmarshal(rawData, &tokenResponse)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	currentTime := time.Now()
-	c.token = &BearerToken{}
-	c.token.expiresIn = currentTime.Unix() + tokenResponse.ExpiresIn
-	c.token.token = tokenResponse.AccessToken
+	return tokenResponse, nil
 }
 
 func (c *Client) prepareHttpRequest(req *http.Request) {
-	c.refreshAuth()
+	c.RefreshAuth()
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token.token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.tokenClient.Token.GetToken()))
 }
 
 func (c *Client) prepareJsonRequest(req *http.Request) {
 	c.prepareHttpRequest(req)
 	req.Header.Set("Content-Type", "application/json")
+}
+
+func (c *Client) HasTokenExpired() bool {
+	return c.tokenClient.Token.IsExpired()
 }
 
 func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
@@ -561,5 +536,19 @@ func NewAzureClient(conf Config) *Client {
 		httpClient: http.DefaultClient,
 		config:     conf,
 	}
+
+	payload.tokenClient = util.NewTokenClient(payload.getNewToken)
+
 	return payload
+}
+
+const AZURE_CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
+const AZURE_CAPABILITY_GROUP_MAIL_PREFIX = "ci-ssu_cap_"
+
+func GenerateAzureGroupDisplayName(name string) string {
+	return fmt.Sprintf("%s %s", AZURE_CAPABILITY_GROUP_PREFIX, name)
+}
+
+func GenerateAzureGroupMailPrefix(name string) string {
+	return fmt.Sprintf("%s%s", AZURE_CAPABILITY_GROUP_MAIL_PREFIX, name)
 }
