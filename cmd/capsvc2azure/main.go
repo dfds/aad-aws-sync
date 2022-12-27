@@ -3,21 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/config"
 	"log"
 
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
-	"go.dfds.cloud/aad-aws-sync/internal/util"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
 func main() {
-	testData := util.LoadTestData()
+	conf, err := config.LoadConfig()
+	if err != nil {
+		log.Fatal("Unable to load app config", err)
+	}
+
 	groupsInAzure := make(map[string]*azure.Group)
 	capabilitiesByRootId := make(map[string]*capsvc.GetCapabilitiesResponseContextCapability)
-	client := capsvc.NewCapSvcClient(testData.CapSvc.Host)
+	client := capsvc.NewCapSvcClient(conf.CapSvc.Host)
 
 	capabilities, err := client.GetCapabilities()
 	if err != nil {
@@ -25,9 +29,9 @@ func main() {
 	}
 
 	azureClient := azure.NewAzureClient(azure.Config{
-		TenantId:     testData.Azure.TenantId,
-		ClientId:     testData.Azure.ClientId,
-		ClientSecret: testData.Azure.ClientSecret,
+		TenantId:     conf.Azure.TenantId,
+		ClientId:     conf.Azure.ClientId,
+		ClientSecret: conf.Azure.ClientSecret,
 	})
 
 	aUnits, err := azureClient.GetAdministrativeUnits()
