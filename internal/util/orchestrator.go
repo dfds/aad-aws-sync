@@ -22,6 +22,24 @@ var currentJobsGauge prometheus.Gauge = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "aad_aws_sync",
 })
 
+var currentJobStatus *prometheus.GaugeVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Name:      "job_is_running",
+	Help:      "Is {job_name} running. 1 = in progress, 0 = not running",
+	Namespace: "aad_aws_sync",
+}, []string{"name"})
+
+var jobFailedCount *prometheus.GaugeVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Name:      "job_failed_count",
+	Help:      "How many times has {job_name} failed.",
+	Namespace: "aad_aws_sync",
+}, []string{"name"})
+
+var jobSuccessfulCount *prometheus.GaugeVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Name:      "job_success_count",
+	Help:      "How many times has {job_name} successfully completed.",
+	Namespace: "aad_aws_sync",
+}, []string{"name"})
+
 // Orchestrator
 // Used for managing long-lived fully fledged sync jobs
 type Orchestrator struct {
@@ -30,6 +48,8 @@ type Orchestrator struct {
 	awsMappingStatus      *SyncStatus
 	awsToK8sSyncStatus    *SyncStatus
 	jobs                  map[string]*Job
+	ctx                   context.Context
+	wg                    *sync.WaitGroup
 }
 
 type SyncStatus struct {
@@ -49,13 +69,15 @@ func (s *SyncStatus) SetStatus(status bool) {
 	s.mu.Unlock()
 }
 
-func NewOrchestrator() *Orchestrator {
+func NewOrchestrator(ctx context.Context, wg *sync.WaitGroup) *Orchestrator {
 	return &Orchestrator{
 		capSvcToAadSyncStatus: &SyncStatus{active: false},
 		aadToAwsSyncStatus:    &SyncStatus{active: false},
 		awsMappingStatus:      &SyncStatus{active: false},
 		awsToK8sSyncStatus:    &SyncStatus{active: false},
 		jobs:                  map[string]*Job{},
+		ctx:                   ctx,
+		wg:                    wg,
 	}
 }
 
@@ -76,9 +98,11 @@ func (o *Orchestrator) Init() {
 		name:    CapabilityServiceToAzureAdName,
 		status:  o.capSvcToAadSyncStatus,
 		context: context.TODO(),
-		handler: func() {
+		wg:      o.wg,
+		handler: func() error {
 			fmt.Println("Doing capsvc 2 azure work")
-			fakeJobGen("Adding Capability", CapabilityServiceToAzureAdName)
+			fakeJobGen(o.ctx, "Adding Capability", CapabilityServiceToAzureAdName)
+			return nil
 		},
 	}
 
@@ -86,9 +110,11 @@ func (o *Orchestrator) Init() {
 		name:    AzureAdToAwsName,
 		status:  o.aadToAwsSyncStatus,
 		context: context.TODO(),
-		handler: func() {
+		wg:      o.wg,
+		handler: func() error {
 			fmt.Println("Doing azure 2 aws work")
-			fakeJobGen("Adding AD group to app registration for SCIM", AzureAdToAwsName)
+			fakeJobGen(o.ctx, "Adding AD group to app registration for SCIM", AzureAdToAwsName)
+			return nil
 		},
 	}
 
@@ -96,9 +122,11 @@ func (o *Orchestrator) Init() {
 		name:    AwsMappingName,
 		status:  o.awsMappingStatus,
 		context: context.TODO(),
-		handler: func() {
+		wg:      o.wg,
+		handler: func() error {
 			fmt.Println("Doing aws mapping work")
-			fakeJobGen("Mapping AWS group to AWS account", AwsMappingName)
+			fakeJobGen(o.ctx, "Mapping AWS group to AWS account", AwsMappingName)
+			return nil
 		},
 	}
 
@@ -106,9 +134,11 @@ func (o *Orchestrator) Init() {
 		name:    AwsToKubernetesName,
 		status:  o.awsToK8sSyncStatus,
 		context: context.TODO(),
-		handler: func() {
+		wg:      o.wg,
+		handler: func() error {
 			fmt.Println("Doing aws 2 k8s work")
-			fakeJobGen("Mapping AWS SSO role to namespace", AwsToKubernetesName)
+			fakeJobGen(o.ctx, "Mapping AWS SSO role to namespace", AwsToKubernetesName)
+			return nil
 		},
 	}
 
@@ -123,7 +153,8 @@ type Job struct {
 	name    string
 	status  *SyncStatus
 	context context.Context
-	handler func()
+	handler func() error
+	wg      *sync.WaitGroup
 }
 
 func (j *Job) Run() {
@@ -131,20 +162,36 @@ func (j *Job) Run() {
 		Logger.Error("Can't start Job because Job is already in progress.", zap.String("jobName", j.name))
 		return
 	}
-	currentJobsGauge.Inc()
 	j.status.SetStatus(true)
+	j.wg.Add(1)
+	currentJobsGauge.Inc()
+	currentJobStatus.WithLabelValues(j.name).Set(1)
+
 	go func() {
-		j.handler() // TODO: Put in a separate goroutine
+		defer j.wg.Done()
+		err := j.handler()
+		if err != nil {
+			jobFailedCount.WithLabelValues(j.name).Inc()
+		} else {
+			jobSuccessfulCount.WithLabelValues(j.name).Inc()
+		}
 		currentJobsGauge.Dec()
+		currentJobStatus.WithLabelValues(j.name).Set(0)
 	}()
 }
 
-func fakeJobGen(msg string, jobName string) {
+func fakeJobGen(ctx context.Context, msg string, jobName string) {
 	entityCount := rand.Intn(100-20) + 20
 	sleepInSecs := rand.Intn(7-2) + 2
 
 	for i := 0; i < entityCount; i++ {
-		Logger.Info(fmt.Sprintf("%s %d", msg, i), zap.String("jobName", jobName))
-		time.Sleep(time.Second * time.Duration(sleepInSecs))
+		select {
+		case <-ctx.Done():
+			Logger.Info("Job cancelled", zap.String("jobName", jobName))
+			return
+		default:
+			Logger.Info(fmt.Sprintf("%s %d", msg, i), zap.String("jobName", jobName))
+			time.Sleep(time.Second * time.Duration(sleepInSecs))
+		}
 	}
 }
