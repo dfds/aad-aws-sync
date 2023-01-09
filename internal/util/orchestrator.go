@@ -145,7 +145,6 @@ func (o *Orchestrator) Init() {
 	for jobName, job := range o.jobs {
 		Logger.Info(fmt.Sprintf("Starting %s job", jobName), zap.String("jobName", jobName))
 		job.Run()
-		//job.Run() // Run twice to check if mutex is working as intended
 	}
 }
 

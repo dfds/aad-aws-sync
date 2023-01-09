@@ -15,6 +15,12 @@ import (
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
 const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
 
+// main
+// Sets up:
+// - Prometheus metrics
+// - Graceful shutdown via Context
+// - Background jobs via Orchestrator
+// - HTTP server
 func main() {
 	util.InitializeLogger()
 	defer util.Logger.Sync()
@@ -31,11 +37,6 @@ func main() {
 	}()
 
 	httpServer := &http.Server{Addr: ":8080"}
-	//go func() {
-	//	if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-	//		log.Fatal(err)
-	//	}
-	//}()
 	go func() {
 		<-ctx.Done()
 		util.Logger.Info("Shutting down HTTP server")
