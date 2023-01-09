@@ -80,6 +80,7 @@ func (c *Client) prepareHttpRequest(req *http.Request) {
 	c.RefreshAuth()
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.tokenClient.Token.GetToken()))
+	req.Header.Set("User-Agent", "aad-aws-sync - github.com/dfds/aad-aws-sync")
 }
 
 func (c *Client) prepareJsonRequest(req *http.Request) {

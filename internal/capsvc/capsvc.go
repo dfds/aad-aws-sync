@@ -28,6 +28,7 @@ type Config struct {
 func (c *Client) prepareHttpRequest(h *http.Request) {
 	c.RefreshAuth()
 	h.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.tokenClient.Token.GetToken()))
+	h.Header.Set("User-Agent", "aad-aws-sync - github.com/dfds/aad-aws-sync")
 }
 
 func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
