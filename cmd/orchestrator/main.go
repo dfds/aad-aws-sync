@@ -1,11 +1,9 @@
 package main
 
 import (
-	"net/http"
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
+	"net/http"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
@@ -17,7 +15,6 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 
 	go func() {
-		time.Sleep(time.Second * 2)
 		util.Logger.Info("Initialising Orchestrator")
 		orc := util.NewOrchestrator()
 		orc.Init()

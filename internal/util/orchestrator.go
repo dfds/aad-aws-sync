@@ -6,12 +6,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
+	"math/rand"
 	"sync"
+	"time"
 )
 
 const CapabilityServiceToAzureAdName = "capSvcToAad"
 const AzureAdToAwsName = "aadToAws"
 const AwsToKubernetesName = "awsToK8s"
+const AwsMappingName = "awsMapping"
 
 var currentJobsGauge prometheus.Gauge = promauto.NewGauge(prometheus.GaugeOpts{
 	Name:      "jobs_running",
@@ -24,6 +27,7 @@ var currentJobsGauge prometheus.Gauge = promauto.NewGauge(prometheus.GaugeOpts{
 type Orchestrator struct {
 	capSvcToAadSyncStatus *SyncStatus
 	aadToAwsSyncStatus    *SyncStatus
+	awsMappingStatus      *SyncStatus
 	awsToK8sSyncStatus    *SyncStatus
 	jobs                  map[string]*Job
 }
@@ -49,6 +53,7 @@ func NewOrchestrator() *Orchestrator {
 	return &Orchestrator{
 		capSvcToAadSyncStatus: &SyncStatus{active: false},
 		aadToAwsSyncStatus:    &SyncStatus{active: false},
+		awsMappingStatus:      &SyncStatus{active: false},
 		awsToK8sSyncStatus:    &SyncStatus{active: false},
 		jobs:                  map[string]*Job{},
 	}
@@ -72,9 +77,8 @@ func (o *Orchestrator) Init() {
 		status:  o.capSvcToAadSyncStatus,
 		context: context.TODO(),
 		handler: func() {
-			go func() {
-				currentJobsGauge.Dec()
-			}()
+			fmt.Println("Doing capsvc 2 azure work")
+			fakeJobGen("Adding Capability", CapabilityServiceToAzureAdName)
 		},
 	}
 
@@ -83,7 +87,18 @@ func (o *Orchestrator) Init() {
 		status:  o.aadToAwsSyncStatus,
 		context: context.TODO(),
 		handler: func() {
+			fmt.Println("Doing azure 2 aws work")
+			fakeJobGen("Adding AD group to app registration for SCIM", AzureAdToAwsName)
+		},
+	}
 
+	o.jobs[AwsMappingName] = &Job{
+		name:    AwsMappingName,
+		status:  o.awsMappingStatus,
+		context: context.TODO(),
+		handler: func() {
+			fmt.Println("Doing aws mapping work")
+			fakeJobGen("Mapping AWS group to AWS account", AwsMappingName)
 		},
 	}
 
@@ -92,14 +107,15 @@ func (o *Orchestrator) Init() {
 		status:  o.awsToK8sSyncStatus,
 		context: context.TODO(),
 		handler: func() {
-
+			fmt.Println("Doing aws 2 k8s work")
+			fakeJobGen("Mapping AWS SSO role to namespace", AwsToKubernetesName)
 		},
 	}
 
 	for jobName, job := range o.jobs {
 		Logger.Info(fmt.Sprintf("Starting %s job", jobName), zap.String("jobName", jobName))
 		job.Run()
-		job.Run() // Run twice to check if mutex is working as intended
+		//job.Run() // Run twice to check if mutex is working as intended
 	}
 }
 
@@ -117,5 +133,18 @@ func (j *Job) Run() {
 	}
 	currentJobsGauge.Inc()
 	j.status.SetStatus(true)
-	j.handler() // TODO: Put in a separate goroutine
+	go func() {
+		j.handler() // TODO: Put in a separate goroutine
+		currentJobsGauge.Dec()
+	}()
+}
+
+func fakeJobGen(msg string, jobName string) {
+	entityCount := rand.Intn(100-20) + 20
+	sleepInSecs := rand.Intn(7-2) + 2
+
+	for i := 0; i < entityCount; i++ {
+		Logger.Info(fmt.Sprintf("%s %d", msg, i), zap.String("jobName", jobName))
+		time.Sleep(time.Second * time.Duration(sleepInSecs))
+	}
 }
