@@ -15,3 +15,8 @@ type GetAccountsMissingCapabilityPermissionSetResponse struct {
 	Account *orgTypes.Account
 	Group   *identityStoreTypes.Group
 }
+
+type GetGroupsNotAssignedToAccountWithPermissionSetResponse struct {
+	GroupsNotAssigned []*identityStoreTypes.Group
+	GroupsAssigned    []*identityStoreTypes.Group
+}

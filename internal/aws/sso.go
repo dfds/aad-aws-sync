@@ -79,6 +79,33 @@ func (m *ManageSso) GetAccountsMissingCapabilityPermissionSet(client *ssoadmin.C
 	return accountsWithMissingPermissionSet, nil
 }
 
+func (m *ManageSso) GetGroupsNotAssignedToAccountWithPermissionSet(client *ssoadmin.Client, ssoInstanceArn string, permissionSetArn string, accountId string, groupPrefix string) (*GetGroupsNotAssignedToAccountWithPermissionSetResponse, error) {
+	resp, err := GetAssignedForPermissionSetInAccount(client, ssoInstanceArn, permissionSetArn, accountId)
+	if err != nil {
+		return nil, err
+	}
+	var groupsCurrentlyAssignedByName = map[string]*identityStoreTypes.Group{}
+	payload := &GetGroupsNotAssignedToAccountWithPermissionSetResponse{}
+
+	for _, assignment := range resp {
+		if assignment.PrincipalType == "GROUP" {
+			group := m.GetGroupById(*assignment.PrincipalId)
+
+			groupsCurrentlyAssignedByName[*group.DisplayName] = group
+			payload.GroupsAssigned = append(payload.GroupsAssigned, group)
+		}
+	}
+
+	for _, grp := range m.AwsSsoGroups {
+		_, containsKey := groupsCurrentlyAssignedByName[*grp.DisplayName]
+		if strings.Contains(*grp.DisplayName, groupPrefix) && !containsKey {
+			payload.GroupsNotAssigned = append(payload.GroupsNotAssigned, grp)
+		}
+	}
+
+	return payload, nil
+}
+
 func RemoveAccountPrefix(prefix string, val string) string {
 	return strings.TrimPrefix(val, prefix)
 }

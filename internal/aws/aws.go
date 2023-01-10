@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	orgTypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
+	"github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"golang.org/x/sync/semaphore"
@@ -104,6 +105,28 @@ func GetAccountsWithProvisionedPermissionSet(client *ssoadmin.Client, instanceAr
 		}
 
 		payload = append(payload, page.AccountIds...)
+	}
+
+	return payload, nil
+}
+
+func GetAssignedForPermissionSetInAccount(client *ssoadmin.Client, ssoInstanceArn string, permissionSetArn string, accountId string) ([]types.AccountAssignment, error) {
+	var maxResults int32 = 100
+	var payload []types.AccountAssignment
+	resps := ssoadmin.NewListAccountAssignmentsPaginator(client, &ssoadmin.ListAccountAssignmentsInput{
+		AccountId:        &accountId,
+		InstanceArn:      &ssoInstanceArn,
+		PermissionSetArn: &permissionSetArn,
+		MaxResults:       &maxResults,
+	})
+
+	for resps.HasMorePages() {
+		page, err := resps.NextPage(context.TODO())
+		if err != nil {
+			return payload, err
+		}
+
+		payload = append(payload, page.AccountAssignments...)
 	}
 
 	return payload, nil

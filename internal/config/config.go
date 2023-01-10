@@ -4,11 +4,13 @@ import "github.com/kelseyhightower/envconfig"
 
 type Config struct {
 	Aws struct {
-		IdentityStoreArn           string `json:"identityStoreArn"`
-		SsoInstanceArn             string `json:"ssoInstanceArn"`
-		CapabilityPermissionSetArn string `json:"capabilityPermissionSetArn"`
-		AccountNamePrefix          string `json:"accountNamePrefix"`
-		AssumableRoles             struct {
+		IdentityStoreArn               string `json:"identityStoreArn"`
+		SsoInstanceArn                 string `json:"ssoInstanceArn"`
+		CapabilityPermissionSetArn     string `json:"capabilityPermissionSetArn"`
+		CapabilityLogsPermissionSetArn string `json:"capabilityLogsPermissionSetArn"`
+		CapabilityLogsAwsAccountAlias  string `json:"capabilityLogsAwsAccountAlias"`
+		AccountNamePrefix              string `json:"accountNamePrefix"`
+		AssumableRoles                 struct {
 			SsoManagementArn          string `json:"ssoManagementArn"`
 			CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
 		} `json:"assumableRoles"`

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	dconfig "go.dfds.cloud/aad-aws-sync/internal/config"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -30,18 +31,56 @@ func main() {
 
 	manageSso := aws.InitManageSso(cfg, conf.Aws.IdentityStoreArn)
 
+	// Capability PermissionSet
 	accountsWithMissingPermissionSet, err := manageSso.GetAccountsMissingCapabilityPermissionSet(ssoClient, conf.Aws.SsoInstanceArn, conf.Aws.CapabilityPermissionSetArn, CAPABILITY_GROUP_PREFIX, conf.Aws.AccountNamePrefix)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for _, resp := range accountsWithMissingPermissionSet {
+		fmt.Printf("Assigning Capability access to group %s for account %s\n", *resp.Group.DisplayName, *resp.Account.Name)
 		_, err := ssoClient.CreateAccountAssignment(context.TODO(), &ssoadmin.CreateAccountAssignmentInput{
 			InstanceArn:      &conf.Aws.SsoInstanceArn,
 			PermissionSetArn: &conf.Aws.CapabilityPermissionSetArn,
 			PrincipalId:      resp.Group.GroupId,
 			PrincipalType:    "GROUP",
 			TargetId:         resp.Account.Id,
+			TargetType:       "AWS_ACCOUNT",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// CapabilityLog PermissionSet
+	acc := manageSso.GetAccountByName(conf.Aws.CapabilityLogsAwsAccountAlias)
+	if acc == nil {
+		log.Fatal("Unable to find CapabilityLogsAwsAccount by alias")
+	}
+
+	resp, err := manageSso.GetGroupsNotAssignedToAccountWithPermissionSet(ssoClient, conf.Aws.SsoInstanceArn, conf.Aws.CapabilityLogsPermissionSetArn, *acc.Id, CAPABILITY_GROUP_PREFIX)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Currently not assigned access:")
+	for _, grp := range resp.GroupsNotAssigned {
+		fmt.Printf("  %s\n", *grp.DisplayName)
+	}
+
+	fmt.Println("Currently assigned access:")
+	for _, grp := range resp.GroupsAssigned {
+		fmt.Printf("  %s\n", *grp.DisplayName)
+	}
+
+	for _, grp := range resp.GroupsNotAssigned {
+		fmt.Printf("Assigning CapabilityLog access to %s\n", *grp.DisplayName)
+		_, err := ssoClient.CreateAccountAssignment(context.TODO(), &ssoadmin.CreateAccountAssignmentInput{
+			InstanceArn:      &conf.Aws.SsoInstanceArn,
+			PermissionSetArn: &conf.Aws.CapabilityLogsPermissionSetArn,
+			PrincipalId:      grp.GroupId,
+			PrincipalType:    "GROUP",
+			TargetId:         acc.Id,
 			TargetType:       "AWS_ACCOUNT",
 		})
 		if err != nil {
