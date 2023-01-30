@@ -47,7 +47,7 @@ func main() {
 	go func() {
 		util.Logger.Info("Initialising Orchestrator")
 		orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg)
-		orc.Init()
+		orc.Init(conf)
 		for _, job := range orc.Jobs {
 			_, err := s.Every(conf.Scheduler.Frequency).DoWithJobDetails(func(j *orchestrator.Job, c gocron.Job) {
 				j.Run()

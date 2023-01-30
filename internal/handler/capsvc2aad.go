@@ -142,7 +142,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				default:
 				}
 				if !azureGroup.HasMember(capMember.Email) {
-					fmt.Printf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email)
+					util.Logger.Info(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.AddGroupMember(azureGroup.ID, capMember.Email)
 					if err != nil {
 						return err

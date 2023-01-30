@@ -1,6 +1,8 @@
 package config
 
-import "github.com/kelseyhightower/envconfig"
+import (
+	"github.com/kelseyhightower/envconfig"
+)
 
 type Config struct {
 	Aws struct {
@@ -27,8 +29,16 @@ type Config struct {
 		Host       string `json:"host"`
 		TokenScope string `json:"tokenScope"`
 	} `json:"capSvc"`
+	Log struct {
+		Level string `json:"level"`
+		Debug bool   `json:"debug"`
+	}
 	Scheduler struct {
-		Frequency string `json:"scheduleFrequency" default:"30m"`
+		Frequency          string `json:"scheduleFrequency" default:"30m"`
+		EnableCapsvc2Azure bool   `json:"enableCapsvc2Azure"`
+		EnableAzure2Aws    bool   `json:"enableAzure2Aws"`
+		EnableAwsMapping   bool   `json:"enableAwsMapping"`
+		EnableAws2K8s      bool   `json:"enableAws2K8S"`
 	}
 }
 

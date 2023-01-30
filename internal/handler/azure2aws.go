@@ -51,11 +51,11 @@ func Azure2AwsHandler(ctx context.Context) error {
 		default:
 		}
 
-		fmt.Println(group.DisplayName)
+		util.Logger.Debug(group.DisplayName, zap.String("jobName", AzureAdToAwsName))
 
 		// If group is not already assigned to enterprise application, assign them.
 		if !appAssignments.ContainsGroup(group.DisplayName) {
-			fmt.Printf("Group %s has not been assigned to application yet, assigning.\n", group.DisplayName)
+			util.Logger.Info(fmt.Sprintf("Group %s has not been assigned to application yet, assigning", group.DisplayName), zap.String("jobName", AzureAdToAwsName))
 			_, err := azClient.AssignGroupToApplication(conf.Azure.ApplicationObjectId, group.ID, appRoleId)
 			if err != nil {
 				return err

@@ -37,7 +37,7 @@ func AwsMappingHandler(ctx context.Context) error {
 
 		assumedRole, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{RoleArn: &conf.Aws.AssumableRoles.SsoManagementArn, RoleSessionName: &roleSessionName})
 		if err != nil {
-			log.Printf("unable to assume role %s, %v", conf.Aws.AssumableRoles.SsoManagementArn, err)
+			util.Logger.Debug(fmt.Sprintf("unable to assume role %s, %v", conf.Aws.AssumableRoles.SsoManagementArn, err))
 			return err
 		}
 
@@ -89,15 +89,17 @@ func AwsMappingHandler(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("Currently not assigned access:")
+	notAssignedGroupNames := []string{}
 	for _, grp := range resp.GroupsNotAssigned {
-		fmt.Printf("  %s\n", *grp.DisplayName)
+		notAssignedGroupNames = append(notAssignedGroupNames, *grp.DisplayName)
 	}
+	util.Logger.Info("Groups missing assigned access", zap.String("jobName", AwsMappingName), zap.Strings("groups", notAssignedGroupNames))
 
-	fmt.Println("Currently assigned access:")
+	assignedGroupNames := []string{}
 	for _, grp := range resp.GroupsAssigned {
-		fmt.Printf("  %s\n", *grp.DisplayName)
+		assignedGroupNames = append(assignedGroupNames, *grp.DisplayName)
 	}
+	util.Logger.Info("Groups with assigned access", zap.String("jobName", AwsMappingName), zap.Strings("groups", assignedGroupNames))
 
 	for _, grp := range resp.GroupsNotAssigned {
 		select {

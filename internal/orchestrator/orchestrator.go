@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/config"
 	"go.dfds.cloud/aad-aws-sync/internal/handler"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"math/rand"
@@ -96,37 +97,45 @@ func (o *Orchestrator) CapSvcToAadSyncProgress() bool {
 	return o.capSvcToAadSyncStatus.InProgress()
 }
 
-func (o *Orchestrator) Init() {
-	o.Jobs[CapabilityServiceToAzureAdName] = &Job{
-		name:    CapabilityServiceToAzureAdName,
-		status:  o.capSvcToAadSyncStatus,
-		context: o.ctx,
-		wg:      o.wg,
-		handler: handler.Capsvc2AadHandler,
+func (o *Orchestrator) Init(conf config.Config) {
+	if conf.Scheduler.EnableCapsvc2Azure {
+		o.Jobs[CapabilityServiceToAzureAdName] = &Job{
+			name:    CapabilityServiceToAzureAdName,
+			status:  o.capSvcToAadSyncStatus,
+			context: o.ctx,
+			wg:      o.wg,
+			handler: handler.Capsvc2AadHandler,
+		}
 	}
 
-	o.Jobs[AzureAdToAwsName] = &Job{
-		name:    AzureAdToAwsName,
-		status:  o.aadToAwsSyncStatus,
-		context: o.ctx,
-		wg:      o.wg,
-		handler: handler.Azure2AwsHandler,
+	if conf.Scheduler.EnableAzure2Aws {
+		o.Jobs[AzureAdToAwsName] = &Job{
+			name:    AzureAdToAwsName,
+			status:  o.aadToAwsSyncStatus,
+			context: o.ctx,
+			wg:      o.wg,
+			handler: handler.Azure2AwsHandler,
+		}
 	}
 
-	o.Jobs[AwsMappingName] = &Job{
-		name:    AwsMappingName,
-		status:  o.awsMappingStatus,
-		context: o.ctx,
-		wg:      o.wg,
-		handler: handler.AwsMappingHandler,
+	if conf.Scheduler.EnableAwsMapping {
+		o.Jobs[AwsMappingName] = &Job{
+			name:    AwsMappingName,
+			status:  o.awsMappingStatus,
+			context: o.ctx,
+			wg:      o.wg,
+			handler: handler.AwsMappingHandler,
+		}
 	}
 
-	o.Jobs[AwsToKubernetesName] = &Job{
-		name:    AwsToKubernetesName,
-		status:  o.awsToK8sSyncStatus,
-		context: o.ctx,
-		wg:      o.wg,
-		handler: handler.Aws2K8sHandler,
+	if conf.Scheduler.EnableAws2K8s {
+		o.Jobs[AwsToKubernetesName] = &Job{
+			name:    AwsToKubernetesName,
+			status:  o.awsToK8sSyncStatus,
+			context: o.ctx,
+			wg:      o.wg,
+			handler: handler.Aws2K8sHandler,
+		}
 	}
 
 	// Commented out by command of Emil I
@@ -153,6 +162,7 @@ func (j *Job) Run() {
 	j.wg.Add(1)
 	currentJobsGauge.Inc()
 	currentJobStatus.WithLabelValues(j.name).Set(1)
+	util.Logger.Warn("Job started", zap.String("jobName", j.name))
 
 	go func() {
 		defer j.wg.Done()
@@ -165,6 +175,8 @@ func (j *Job) Run() {
 		currentJobsGauge.Dec()
 		currentJobStatus.WithLabelValues(j.name).Set(0)
 		j.status.SetStatus(false)
+		util.Logger.Warn("Job ended", zap.String("jobName", j.name))
+
 	}()
 }
 

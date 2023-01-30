@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
+	"go.uber.org/zap"
 	"io"
 	"k8s.io/utils/env"
 	"log"
@@ -123,7 +125,6 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 	nextLink := payload.OdataNextLink
 
 	for nextLink != "" {
-		fmt.Println("Fetching additional groups")
 		req, err := http.NewRequest("GET", nextLink, nil)
 		if err != nil {
 			return nil, err
@@ -272,16 +273,16 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 
 	if resp.StatusCode != 204 {
 		if resp.StatusCode == 404 {
-			log.Printf("User %s not found, skipping.", upn)
+			util.Logger.Info(fmt.Sprintf("User %s not found, skipping", upn), zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
 			return nil
 		}
 
 		if resp.StatusCode == 403 {
-			log.Println("Response returned with unexpected 403. Skipping entry.")
+			util.Logger.Info("Response returned with unexpected 403. Skipping entry", zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
 			return nil
 		}
 
-		log.Fatal(resp.StatusCode)
+		return errors.New(fmt.Sprintf("%d", resp.StatusCode))
 	}
 
 	return nil
@@ -314,7 +315,6 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 	nextLink := payload.OdataNextLink
 
 	for nextLink != "" {
-		fmt.Println("Fetching additional groups")
 		req, err := http.NewRequest("GET", nextLink, nil)
 		if err != nil {
 			return nil, err
@@ -432,7 +432,6 @@ func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmen
 	nextLink := payload.OdataNextLink
 
 	for nextLink != "" {
-		fmt.Println("Fetching additional assignments")
 		req, err := http.NewRequest("GET", nextLink, nil)
 		if err != nil {
 			return nil, err

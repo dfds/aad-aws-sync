@@ -13,8 +13,9 @@ import (
 	orgTypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
+	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 	"log"
 	"net/http"
@@ -139,11 +140,16 @@ func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleM
 	var maxConcurrentOps int64 = 30
 
 	var waitGroup sync.WaitGroup
+	payloadMutex := &sync.Mutex{}
 	sem := semaphore.NewWeighted(maxConcurrentOps)
 	ctx := context.TODO()
 
-	for _, acc := range accounts {
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("eu-west-1"), config.WithHTTPClient(CreateHttpClientWithoutKeepAlive()))
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	for _, acc := range accounts {
 		waitGroup.Add(1)
 		acc := acc
 		go func() {
@@ -152,16 +158,12 @@ func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleM
 			defer waitGroup.Done()
 
 			roleArn := fmt.Sprintf("arn:aws:iam::%s:role/%s", acc.AccountId, roleName)
-			cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("eu-west-1"), config.WithHTTPClient(CreateHttpClientWithoutKeepAlive()))
-			if err != nil {
-				log.Fatalf("unable to load SDK config, %v", err)
-			}
 
 			stsClient := sts.NewFromConfig(cfg)
 			roleSessionName := "aad-aws-sync"
 			assumedRole, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{RoleArn: &roleArn, RoleSessionName: &roleSessionName})
 			if err != nil {
-				log.Printf("unable to assume role %s\nAccount %s (%s) is likely missing the IAM role 'SSO_list_iam_roles' or it is misconfigured, skipping account.\nOriginal error: %v\n\n", roleArn, acc.AccountAlias, acc.AccountId, err)
+				util.Logger.Debug(fmt.Sprintf("unable to assume role %s. Account %s (%s) is likely missing the IAM role 'sso-reader' or it is misconfigured, skipping account", roleArn, acc.AccountAlias, acc.AccountId), zap.Error(err))
 				return
 			}
 
@@ -181,7 +183,9 @@ func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleM
 				if strings.Contains(*role.RoleName, roleNamePrefix) {
 					acc.RoleName = *role.RoleName
 					acc.RoleArn = *role.Arn
+					payloadMutex.Lock()
 					payload[acc.AccountAlias] = acc
+					payloadMutex.Unlock()
 				}
 			}
 		}()
