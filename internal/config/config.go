@@ -26,6 +26,9 @@ type Config struct {
 		Host       string `json:"host"`
 		TokenScope string `json:"tokenScope"`
 	} `json:"capSvc"`
+	Scheduler struct {
+		Frequency string `json:"scheduleFrequency" default:"30m"`
+	}
 }
 
 const APP_CONF_PREFIX = "AAS"

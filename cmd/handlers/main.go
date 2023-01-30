@@ -9,7 +9,6 @@ import (
 
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/azuretest"
-	"go.dfds.cloud/aad-aws-sync/internal/handlers"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkautil"
 	"go.dfds.cloud/aad-aws-sync/internal/router"
@@ -34,11 +33,11 @@ type Config struct {
 type eventHandlers struct{}
 
 func (_ eventHandlers) PermanentErrorHandler(ctx context.Context, event kafkamsgs.Event, err error) {
-	handlers.PermanentErrorHandler(ctx, event, err)
+	event_handlers.PermanentErrorHandler(ctx, event, err)
 }
 
 func (_ eventHandlers) CapabilityCreatedHandler(ctx context.Context, event kafkamsgs.Event) {
-	handlers.CapabilityCreatedHandler(ctx, event)
+	event_handlers.CapabilityCreatedHandler(ctx, event)
 }
 
 func main() {
@@ -120,10 +119,10 @@ func main() {
 
 	// Initiate handlers context
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, handlers.ContextKeyAzureClient, azureClient)
-	ctx = context.WithValue(ctx, handlers.ContextKeyAzureParentAdministrativeUnitID, config.AzureParentAdministrativeUnitID)
-	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaProducer, producer)
-	ctx = context.WithValue(ctx, handlers.ContextKeyKafkaErrorProducer, errorProducer)
+	ctx = context.WithValue(ctx, event_handlers.ContextKeyAzureClient, azureClient)
+	ctx = context.WithValue(ctx, event_handlers.ContextKeyAzureParentAdministrativeUnitID, config.AzureParentAdministrativeUnitID)
+	ctx = context.WithValue(ctx, event_handlers.ContextKeyKafkaProducer, producer)
+	ctx = context.WithValue(ctx, event_handlers.ContextKeyKafkaErrorProducer, errorProducer)
 	ctx = context.WithValue(ctx, router.ContextKeyKafkaConsumer, consumer)
 	ctx = context.WithValue(ctx, router.ContextKeyEventHandlers, eventHandlers{})
 	ctx = context.WithValue(ctx, router.ContextKeyLogger, log)

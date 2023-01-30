@@ -1,2 +1,3 @@
 internal/test/testdata.json
 .env
+.envrc

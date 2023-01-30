@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 
-	"go.dfds.cloud/aad-aws-sync/internal/handlers"
 	"go.dfds.cloud/aad-aws-sync/internal/kafkamsgs"
 	"go.uber.org/zap"
 )
@@ -53,14 +52,14 @@ func ConsumeMessages(ctx context.Context) {
 		var eventCtx context.Context
 		if event == nil || event.Name == "" {
 			// Handle undetermined event name
-			eventHandlers.PermanentErrorHandler(context.WithValue(ctx, handlers.ContextKeyLogger, msgLog),
+			eventHandlers.PermanentErrorHandler(context.WithValue(ctx, event_handlers.ContextKeyLogger, msgLog),
 				*event, errors.New("unable to determine an event name"))
 			goto CommitOffset
 		}
 
 		// Initiate the event logger and context
 		eventLog = msgLog.With(zap.String("name", event.Name), zap.String("version", event.Version))
-		eventCtx = context.WithValue(ctx, handlers.ContextKeyLogger, eventLog)
+		eventCtx = context.WithValue(ctx, event_handlers.ContextKeyLogger, eventLog)
 		eventLog.Info("Event detected")
 
 		// Route the event to the appropriate handler based on event name and version

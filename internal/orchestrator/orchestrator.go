@@ -1,14 +1,17 @@
-package util
+package orchestrator
 
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/zap"
+	"go.dfds.cloud/aad-aws-sync/internal/handler"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/zap"
 )
 
 const CapabilityServiceToAzureAdName = "capSvcToAad"
@@ -47,7 +50,7 @@ type Orchestrator struct {
 	aadToAwsSyncStatus    *SyncStatus
 	awsMappingStatus      *SyncStatus
 	awsToK8sSyncStatus    *SyncStatus
-	jobs                  map[string]*Job
+	Jobs                  map[string]*Job
 	ctx                   context.Context
 	wg                    *sync.WaitGroup
 }
@@ -75,7 +78,7 @@ func NewOrchestrator(ctx context.Context, wg *sync.WaitGroup) *Orchestrator {
 		aadToAwsSyncStatus:    &SyncStatus{active: false},
 		awsMappingStatus:      &SyncStatus{active: false},
 		awsToK8sSyncStatus:    &SyncStatus{active: false},
-		jobs:                  map[string]*Job{},
+		Jobs:                  map[string]*Job{},
 		ctx:                   ctx,
 		wg:                    wg,
 	}
@@ -94,71 +97,56 @@ func (o *Orchestrator) CapSvcToAadSyncProgress() bool {
 }
 
 func (o *Orchestrator) Init() {
-	o.jobs[CapabilityServiceToAzureAdName] = &Job{
+	o.Jobs[CapabilityServiceToAzureAdName] = &Job{
 		name:    CapabilityServiceToAzureAdName,
 		status:  o.capSvcToAadSyncStatus,
-		context: context.TODO(),
+		context: o.ctx,
 		wg:      o.wg,
-		handler: func() error {
-			fmt.Println("Doing capsvc 2 azure work")
-			fakeJobGen(o.ctx, "Adding Capability", CapabilityServiceToAzureAdName)
-			return nil
-		},
+		handler: handler.Capsvc2AadHandler,
 	}
 
-	o.jobs[AzureAdToAwsName] = &Job{
+	o.Jobs[AzureAdToAwsName] = &Job{
 		name:    AzureAdToAwsName,
 		status:  o.aadToAwsSyncStatus,
-		context: context.TODO(),
+		context: o.ctx,
 		wg:      o.wg,
-		handler: func() error {
-			fmt.Println("Doing azure 2 aws work")
-			fakeJobGen(o.ctx, "Adding AD group to app registration for SCIM", AzureAdToAwsName)
-			return nil
-		},
+		handler: handler.Azure2AwsHandler,
 	}
 
-	o.jobs[AwsMappingName] = &Job{
+	o.Jobs[AwsMappingName] = &Job{
 		name:    AwsMappingName,
 		status:  o.awsMappingStatus,
-		context: context.TODO(),
+		context: o.ctx,
 		wg:      o.wg,
-		handler: func() error {
-			fmt.Println("Doing aws mapping work")
-			fakeJobGen(o.ctx, "Mapping AWS group to AWS account", AwsMappingName)
-			return nil
-		},
+		handler: handler.AwsMappingHandler,
 	}
 
-	o.jobs[AwsToKubernetesName] = &Job{
+	o.Jobs[AwsToKubernetesName] = &Job{
 		name:    AwsToKubernetesName,
 		status:  o.awsToK8sSyncStatus,
-		context: context.TODO(),
+		context: o.ctx,
 		wg:      o.wg,
-		handler: func() error {
-			fmt.Println("Doing aws 2 k8s work")
-			fakeJobGen(o.ctx, "Mapping AWS SSO role to namespace", AwsToKubernetesName)
-			return nil
-		},
+		handler: handler.Aws2K8sHandler,
 	}
 
-	for jobName, job := range o.jobs {
-		Logger.Info(fmt.Sprintf("Starting %s job", jobName), zap.String("jobName", jobName))
-		job.Run()
-	}
+	// Commented out by command of Emil I
+	// for jobName, job := range o.Jobs {
+	// 	Logger.Info(fmt.Sprintf("Starting %s job", jobName), zap.String("jobName", jobName))
+	// 	job.Run()
+	// }
 }
 
 type Job struct {
 	name    string
 	status  *SyncStatus
 	context context.Context
-	handler func() error
+	handler func(ctx context.Context) error
 	wg      *sync.WaitGroup
 }
 
 func (j *Job) Run() {
 	if j.status.InProgress() {
-		Logger.Error("Can't start Job because Job is already in progress.", zap.String("jobName", j.name))
+		util.Logger.Warn("Can't start Job because Job is already in progress.", zap.String("jobName", j.name))
 		return
 	}
 	j.status.SetStatus(true)
@@ -168,7 +156,7 @@ func (j *Job) Run() {
 
 	go func() {
 		defer j.wg.Done()
-		err := j.handler()
+		err := j.handler(j.context)
 		if err != nil {
 			jobFailedCount.WithLabelValues(j.name).Inc()
 		} else {
@@ -176,6 +164,7 @@ func (j *Job) Run() {
 		}
 		currentJobsGauge.Dec()
 		currentJobStatus.WithLabelValues(j.name).Set(0)
+		j.status.SetStatus(false)
 	}()
 }
 
@@ -186,10 +175,10 @@ func fakeJobGen(ctx context.Context, msg string, jobName string) {
 	for i := 0; i < entityCount; i++ {
 		select {
 		case <-ctx.Done():
-			Logger.Info("Job cancelled", zap.String("jobName", jobName))
+			util.Logger.Info("Job cancelled", zap.String("jobName", jobName))
 			return
 		default:
-			Logger.Info(fmt.Sprintf("%s %d", msg, i), zap.String("jobName", jobName))
+			util.Logger.Info(fmt.Sprintf("%s %d", msg, i), zap.String("jobName", jobName))
 			time.Sleep(time.Second * time.Duration(sleepInSecs))
 		}
 	}
