@@ -2,6 +2,8 @@ name: aadawssync build
 
 on:
   push:
+    tags-ignore:
+      - v*
     paths:
       - 'cmd/**'
       - 'internal/**'
