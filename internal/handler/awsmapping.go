@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	daws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"go.dfds.cloud/aad-aws-sync/internal/aws"
 	dconfig "go.dfds.cloud/aad-aws-sync/internal/config"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
@@ -21,9 +24,27 @@ func AwsMappingHandler(ctx context.Context) error {
 		return err
 	}
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("eu-west-1"), config.WithHTTPClient(aws.CreateHttpClientWithoutKeepAlive()))
+	var cfg daws.Config
+
+	cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithRegion(conf.Aws.SsoRegion), config.WithHTTPClient(aws.CreateHttpClientWithoutKeepAlive()))
 	if err != nil {
 		return errors.New(fmt.Sprintf("unable to load SDK config, %v", err))
+	}
+
+	if conf.Aws.AssumableRoles.SsoManagementArn != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		roleSessionName := fmt.Sprintf("aad-aws-sync-%s", AwsMappingName)
+
+		assumedRole, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{RoleArn: &conf.Aws.AssumableRoles.SsoManagementArn, RoleSessionName: &roleSessionName})
+		if err != nil {
+			log.Printf("unable to assume role %s, %v", conf.Aws.AssumableRoles.SsoManagementArn, err)
+			return err
+		}
+
+		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(*assumedRole.Credentials.AccessKeyId, *assumedRole.Credentials.SecretAccessKey, *assumedRole.Credentials.SessionToken)), config.WithRegion(conf.Aws.SsoRegion))
+		if err != nil {
+			return errors.New(fmt.Sprintf("unable to load SDK config, %v", err))
+		}
 	}
 
 	ssoClient := ssoadmin.NewFromConfig(cfg)

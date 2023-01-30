@@ -10,6 +10,7 @@ type Config struct {
 		CapabilityLogsPermissionSetArn string `json:"capabilityLogsPermissionSetArn"`
 		CapabilityLogsAwsAccountAlias  string `json:"capabilityLogsAwsAccountAlias"`
 		AccountNamePrefix              string `json:"accountNamePrefix"`
+		SsoRegion                      string `json:"ssoRegion"`
 		AssumableRoles                 struct {
 			SsoManagementArn          string `json:"ssoManagementArn"`
 			CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
