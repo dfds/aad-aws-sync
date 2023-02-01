@@ -15,6 +15,7 @@ spec:
       labels:
         app: aad-aws-sync
     spec:
+      serviceAccountName: aad-aws-sync
       containers:
       - image: dfdsdk/aadawssync:latest
         name: aad-aws-sync
