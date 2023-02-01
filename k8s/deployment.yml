@@ -28,7 +28,7 @@ spec:
         - name: AAS_SCHEDULER_ENABLEAZURE2AWS
           value: "true"
         - name: AAS_SCHEDULER_ENABLEAWSMAPPING
-          value: "false"
+          value: "true"
         - name: AAS_SCHEDULER_ENABLEAWS2K8S
           value: "false"
         - name: AAS_LOG_LEVEL
