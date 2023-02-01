@@ -21,7 +21,7 @@ spec:
         imagePullPolicy: Always
         env:
         - name: AAS_SCHEDULER_FREQUENCY
-          value: 1m
+          value: 5m
         - name: AAS_SCHEDULER_ENABLECAPSVC2AZURE
           value: "false"
         - name: AAS_SCHEDULER_ENABLEAZURE2AWS
