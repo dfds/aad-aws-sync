@@ -14,6 +14,7 @@ on:
         required: false
         type: boolean
         description: "Trigger deploy"
+
 jobs:
   deploy:
     name:  '01 - Linux'
@@ -24,7 +25,6 @@ jobs:
     defaults:
       run:
         shell: bash
-        #working-directory: /tmp
     steps:
       - uses: actions/checkout@v2
       - name: Replace tokens in k8s manifests
