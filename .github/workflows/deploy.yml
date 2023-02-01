@@ -1,0 +1,53 @@
+name: aadawssync deploy
+
+on:
+  push:
+    tags-ignore:
+      - v*
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        default: false
+        required: false
+        type: boolean
+        description: "Trigger deploy"
+jobs:
+  deploy:
+    name:  '01 - Linux'
+    runs-on: [ubuntu-20.04]
+    strategy:
+      matrix:
+        arch: ['x86_64']
+    defaults:
+      run:
+        shell: bash
+        #working-directory: /tmp
+    steps:
+      - uses: actions/checkout@v2
+      - name: Replace tokens in k8s manifests
+        uses: cschleiden/replace-tokens@v1.1
+        with:
+          tokenPrefix: '$('
+          tokenSuffix: ')'
+          files: '["k8s/*.yml"]'
+        env:
+          kubernetes-namespace: 'aadawssync'
+      - run: 'echo "$KUBECONFIG" > /tmp/kubeconfig'
+        shell: bash
+        env:
+          KUBECONFIG: ${{secrets.KUBECONFIG}}
+      - uses: azure/setup-kubectl@v3
+#        with:
+#          version: '0.0.0' # default is latest stable
+        id: install
+      - name: 'Deploy manifests with Kubectl'
+        env:
+          KUBECONFIG: '/tmp/kubeconfig'
+          NAMESPACE: 'aadawssync'
+        run: |
+          kubectl apply -f k8s
+          kubectl scale -n $NAMESPACE --replicas=0 deployment/aad-aws-sync
+          kubectl scale -n $NAMESPACE --replicas=1 deployment/aad-aws-sync

@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: aad-aws-sync
+  name: aad-aws-sync
+  namespace: $(kubernetes-namespace)
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aad-aws-sync
+  template:
+    metadata:
+      labels:
+        app: aad-aws-sync
+    spec:
+      containers:
+      - image: dfdsdk/aadawssync:latest
+        name: aad-aws-sync
+        imagePullPolicy: Always
+        env:
+        - name: AAS_SCHEDULER_FREQUENCY
+          value: 1m
+        - name: AAS_SCHEDULER_ENABLECAPSVC2AZURE
+          value: "false"
+        - name: AAS_SCHEDULER_ENABLEAZURE2AWS
+          value: "false"
+        - name: AAS_SCHEDULER_ENABLEAWSMAPPING
+          value: "false"
+        - name: AAS_SCHEDULER_ENABLEAWS2K8S
+          value: "false"
+        - name: AAS_LOG_LEVEL=info
+          value: info
+        - name: AAS_AWS_SSOREGION
+          value: eu-west-1
+        envFrom:
+          - secretRef:
+              name: aad-aws-sync
+              optional: false
