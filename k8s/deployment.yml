@@ -23,7 +23,7 @@ spec:
         - name: AAS_SCHEDULER_FREQUENCY
           value: 5m
         - name: AAS_SCHEDULER_ENABLECAPSVC2AZURE
-          value: "false"
+          value: "true"
         - name: AAS_SCHEDULER_ENABLEAZURE2AWS
           value: "false"
         - name: AAS_SCHEDULER_ENABLEAWSMAPPING
