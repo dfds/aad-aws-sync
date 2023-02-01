@@ -3,9 +3,11 @@ kind: Service
 metadata:
   name: aad-aws-sync
   namespace: $(kubernetes-namespace)
+  labels:
+    scrape-service-metrics: "true"
 spec:
   ports:
-  - name: external
+  - name: metrics
     port: 8080
     targetPort: 8080
   selector:

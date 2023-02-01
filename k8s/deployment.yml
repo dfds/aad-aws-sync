@@ -25,7 +25,7 @@ spec:
         - name: AAS_SCHEDULER_ENABLECAPSVC2AZURE
           value: "true"
         - name: AAS_SCHEDULER_ENABLEAZURE2AWS
-          value: "false"
+          value: "true"
         - name: AAS_SCHEDULER_ENABLEAWSMAPPING
           value: "false"
         - name: AAS_SCHEDULER_ENABLEAWS2K8S
