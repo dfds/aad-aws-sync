@@ -2,8 +2,6 @@ name: aadawssync deploy
 
 on:
   push:
-    tags-ignore:
-      - v*
     paths:
       - 'k8s/**'
       - '.github/workflows/deploy.yml'
