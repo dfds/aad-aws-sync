@@ -2,14 +2,14 @@ name: aadawssync build
 
 on:
   push:
-    tags-ignore:
-      - v*
+    branches:
+      - "main"
     paths:
       - 'cmd/**'
       - 'internal/**'
       - 'vendor/**'
       - '.github/workflows/build.yml'
-  workflow_dispatch: 
+  workflow_dispatch:
     inputs:
       deploy:
         default: false
