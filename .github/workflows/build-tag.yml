@@ -3,7 +3,7 @@ name: aadawssync build tag
 on:
   create:
     tags:
-      - v*
+      - 'v*'
 
 jobs:
   deploy:
