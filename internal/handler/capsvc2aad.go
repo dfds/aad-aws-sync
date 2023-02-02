@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
@@ -141,6 +142,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 					return nil
 				default:
 				}
+
 				if !azureGroup.HasMember(capMember.Email) {
 					util.Logger.Info(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.AddGroupMember(azureGroup.ID, capMember.Email)
@@ -149,10 +151,26 @@ func Capsvc2AadHandler(ctx context.Context) error {
 					}
 				}
 			}
+
+			//Delete members no longer in capability from Azure AD Group
+			for _, member := range azureGroup.Members {
+				select {
+				case <-ctx.Done():
+					util.Logger.Info("Job cancelled", zap.String("jobName", CapabilityServiceToAzureAdName))
+					return nil
+				default:
+				}
+
+				if !capability.HasMember(member.UserPrincipalName) {
+					util.Logger.Info(fmt.Sprintf("Azure group %s contains stale member %s, removing.\n", azureGroup.DisplayName, member.UserPrincipalName), zap.String("jobName", CapabilityServiceToAzureAdName))
+					err = azureClient.DeleteGroupMember(azureGroup.ID, member.ID)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
 		}
-
-		// TODO: Check if member that exists in Azure AD group has been removed from the Capability, if that's the case, remove them.
-
 	}
 	return nil
 }

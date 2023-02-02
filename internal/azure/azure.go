@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.dfds.cloud/aad-aws-sync/internal/util"
-	"go.uber.org/zap"
 	"io"
-	"k8s.io/utils/env"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"go.dfds.cloud/aad-aws-sync/internal/util"
+	"go.uber.org/zap"
+	"k8s.io/utils/env"
 )
 
 // TODO look into using: https://github.com/microsoftgraph/msgraph-sdk-go
@@ -286,6 +287,37 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 	}
 
 	return nil
+}
+
+func (c *Client) DeleteGroupMember(groupId string, memberId string) error {
+
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members/%s/$ref", groupId, memberId), nil)
+	if err != nil {
+		return err
+	}
+	c.prepareJsonRequest(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 204 {
+		if resp.StatusCode == 404 {
+			util.Logger.Info(fmt.Sprintf("User %s not found, skipping", memberId), zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
+			return nil
+		}
+
+		if resp.StatusCode == 403 {
+			util.Logger.Info("Response returned with unexpected 403. Skipping entry", zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
+			return nil
+		}
+
+		return errors.New(fmt.Sprintf("%d", resp.StatusCode))
+	}
+
+	return nil
+
 }
 
 func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnitMembersResponse, error) {
