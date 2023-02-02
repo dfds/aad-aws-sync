@@ -1,12 +1,9 @@
 name: aadawssync build tag
 
 on:
-  create:
+  push:
     tags:
       - 'v*'
-  push:
-    branches-ignore:
-      - '**'
 
 jobs:
   deploy:
