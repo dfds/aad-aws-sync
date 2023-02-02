@@ -50,5 +50,3 @@ jobs:
           NAMESPACE: 'aadawssync'
         run: |
           kubectl apply -f k8s
-          kubectl scale -n $NAMESPACE --replicas=0 deployment/aad-aws-sync
-          kubectl scale -n $NAMESPACE --replicas=1 deployment/aad-aws-sync
