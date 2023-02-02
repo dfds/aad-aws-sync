@@ -5,6 +5,8 @@ on:
     paths:
       - 'k8s/**'
       - '.github/workflows/deploy.yml'
+    tags-ignore:
+      - "v*"
   workflow_dispatch:
     inputs:
       deploy:
