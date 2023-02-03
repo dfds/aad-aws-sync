@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
+	"time"
+
 	daws "github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -15,9 +19,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
-	"log"
-	"strings"
-	"time"
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
@@ -54,9 +55,11 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 	orgClient := organizations.NewFromConfig(cfg)
 
+	// Get all AWS accounts
 	accounts := aws.GetAccounts(orgClient)
 	ssoRoleMappings := []aws.SsoRoleMapping{}
 
+	// Put AWS accounts in a useful format
 	for _, acc := range accounts {
 		ssoRoleMapping := aws.SsoRoleMapping{
 			AccountAlias: *acc.Name,
@@ -68,6 +71,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 		ssoRoleMappings = append(ssoRoleMappings, ssoRoleMapping)
 	}
 
+	// Populate rolename rolearn from api+config
 	resp := aws.GetSsoRoles(ssoRoleMappings, conf.Aws.AssumableRoles.CapabilityAccountRoleName)
 	//for _, acc := range resp {
 	//	fmt.Printf("AWS Account: %s\nSSO role name: %s\nSSO role arn: %s\n", acc.AccountAlias, acc.RoleName, acc.RoleArn)
@@ -78,14 +82,35 @@ func Aws2K8sHandler(ctx context.Context) error {
 		log.Fatal(err)
 	}
 
-	for _, mapping := range amResp.Mappings {
-		if mapping.ManagedByThis() {
+	// Loop through configmap entries
+	fmt.Println("DOING SOME CHECKS FOR CAPABILITY PERMISSION SET ROLES NO LONGER EXISTING")
+	for x := 0; x < len(amResp.Mappings); x++ {
+		if amResp.Mappings[x].ManagedByThis() {
 			//fmt.Println(mapping)
 			//currentTime := time.Now()
 			//mapping.LastUpdated = currentTime.Format(TIME_FORMAT)
+
+			// Check for mapping RoleArn exists/matches resp RoleArn
+			fmt.Println(amResp.Mappings[x].RoleARN)
+			match := false
+
+			for _, r := range resp {
+				//fmt.Printf("    %s\n", r.RoleArn)
+				arnSlice := strings.Split(r.RoleArn, "/")
+				arnTrimmed := arnSlice[0] + "/" + arnSlice[len(arnSlice)-1]
+				if amResp.Mappings[x].RoleARN == arnTrimmed {
+					match = true
+				}
+			}
+
+			if !match {
+				fmt.Printf("Role no longer found. Removing %s", amResp.Mappings[x].RoleARN)
+				amResp.Mappings = removeArrayItem(amResp.Mappings, x)
+			}
 		}
 	}
 
+	// Loop through AWS account info where a capability access role is found
 	for _, acc := range resp {
 		select {
 		case <-ctx.Done():
@@ -97,6 +122,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 		mapping := amResp.GetMappingByArn(fmt.Sprintf("arn:aws:iam::%s:role/%s", acc.AccountId, acc.RoleName))
 		currentTime := time.Now()
 
+		// If no config-map entry for aws acc with role
 		if mapping == nil {
 			fmt.Printf("No mapping for %s, creating.\n", acc.AccountAlias)
 			roleMapping := &k8s.RoleMapping{
@@ -146,4 +172,9 @@ func Aws2K8sHandler(ctx context.Context) error {
 		log.Fatal(err)
 	}
 	return nil
+}
+
+func removeArrayItem(s []*k8s.RoleMapping, i int) []*k8s.RoleMapping {
+	s[i] = s[len(s)-1]
+	return s[:len(s)-1]
 }
