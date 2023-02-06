@@ -24,9 +24,9 @@ func InitializeLogger() {
 		fmt.Println(err)
 		level = zapcore.InfoLevel
 	}
-	fmt.Println("Level:", level)
 
 	logConf.Level = zap.NewAtomicLevelAt(level)
 
 	Logger, _ = logConf.Build(zap.AddStacktrace(zapcore.ErrorLevel))
+	Logger.Info(fmt.Sprintf("Logging enabled, log level set to %s", Logger.Level().String()))
 }

@@ -73,29 +73,19 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 	// Populate rolename rolearn from api+config
 	resp := aws.GetSsoRoles(ssoRoleMappings, conf.Aws.AssumableRoles.CapabilityAccountRoleName)
-	//for _, acc := range resp {
-	//	fmt.Printf("AWS Account: %s\nSSO role name: %s\nSSO role arn: %s\n", acc.AccountAlias, acc.RoleName, acc.RoleArn)
-	//}
 
 	amResp, err := k8s.LoadAwsAuthMapRoles()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Loop through configmap entries
-	fmt.Println("DOING SOME CHECKS FOR CAPABILITY PERMISSION SET ROLES NO LONGER EXISTING")
+	// Loop through ConfigMap entries, check if an entry exists where the equivalent AWS role doesn't. If that's the case, remove the entry from aws-auth ConfigMap
 	for x := 0; x < len(amResp.Mappings); x++ {
 		if amResp.Mappings[x].ManagedByThis() {
-			//fmt.Println(mapping)
-			//currentTime := time.Now()
-			//mapping.LastUpdated = currentTime.Format(TIME_FORMAT)
-
 			// Check for mapping RoleArn exists/matches resp RoleArn
-			fmt.Println(amResp.Mappings[x].RoleARN)
 			match := false
 
 			for _, r := range resp {
-				//fmt.Printf("    %s\n", r.RoleArn)
 				arnSlice := strings.Split(r.RoleArn, "/")
 				arnTrimmed := arnSlice[0] + "/" + arnSlice[len(arnSlice)-1]
 				if amResp.Mappings[x].RoleARN == arnTrimmed {
@@ -104,7 +94,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 			}
 
 			if !match {
-				fmt.Printf("Role no longer found. Removing %s", amResp.Mappings[x].RoleARN)
+				util.Logger.Info(fmt.Sprintf("Role no longer found. Removing %s", amResp.Mappings[x].RoleARN), zap.String("jobName", AwsToKubernetesName))
 				amResp.Mappings = removeArrayItem(amResp.Mappings, x)
 			}
 		}
@@ -124,7 +114,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 		// If no config-map entry for aws acc with role
 		if mapping == nil {
-			fmt.Printf("No mapping for %s, creating.\n", acc.AccountAlias)
+			util.Logger.Info(fmt.Sprintf("No mapping for %s, creating.\n", acc.AccountAlias), zap.String("jobName", AwsToKubernetesName))
 			roleMapping := &k8s.RoleMapping{
 				RoleARN:     fmt.Sprintf("arn:aws:iam::%s:role/%s", acc.AccountId, acc.RoleName),
 				ManagedBy:   "aad-aws-sync",
@@ -135,7 +125,6 @@ func Aws2K8sHandler(ctx context.Context) error {
 			}
 			amResp.Mappings = append(amResp.Mappings, roleMapping)
 		} else {
-			//fmt.Printf("Mapping for %s discovered. Checking if update is needed\n", acc.AccountAlias)
 			configMismatch := false
 
 			if mapping.Username != fmt.Sprintf("%s:sso-{{SessionName}}", acc.RootId) {
@@ -151,7 +140,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 			}
 
 			if configMismatch {
-				fmt.Printf("Config mismatch for %s detected, updating entry\n", acc.AccountAlias)
+				util.Logger.Info(fmt.Sprintf("Config mismatch for %s detected, updating entry\n", acc.AccountAlias), zap.String("jobName", AwsToKubernetesName))
 
 				mapping.Username = fmt.Sprintf("%s:sso-{{SessionName}}", acc.RootId)
 				mapping.Groups = []string{"DFDS-ReadOnly", acc.RootId}
