@@ -30,7 +30,7 @@ spec:
         - name: AAS_SCHEDULER_ENABLEAWSMAPPING
           value: "true"
         - name: AAS_SCHEDULER_ENABLEAWS2K8S
-          value: "false"
+          value: "true"
         - name: AAS_LOG_LEVEL
           value: info
         - name: AAS_AWS_SSOREGION
