@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"go.dfds.cloud/aad-aws-sync/internal/orchestrator"
 	"log"
 	"net/http"
@@ -59,6 +61,13 @@ func main() {
 		}
 
 		s.StartBlocking()
+	}()
+
+	go func() {
+		app := fiber.New(fiber.Config{DisableStartupMessage: true})
+		app.Use(pprof.New())
+
+		app.Listen(":8081")
 	}()
 
 	httpServer := &http.Server{Addr: ":8080"}
