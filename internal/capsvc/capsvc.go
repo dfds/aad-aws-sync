@@ -43,6 +43,8 @@ func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -86,6 +88,8 @@ func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	defer resp.Body.Close()
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {

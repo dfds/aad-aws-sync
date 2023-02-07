@@ -111,6 +111,8 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -172,6 +174,8 @@ func (c *Client) GetAdministrativeUnits() (*GetAdministrativeUnitsResponse, erro
 	if err != nil {
 		return nil, err
 	}
+
+	defer resp.Body.Close()
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -238,6 +242,8 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 		return err
 	}
 
+	defer resp.Body.Close()
+
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -272,6 +278,8 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 		return err
 	}
 
+	defer resp.Body.Close()
+
 	if resp.StatusCode != 204 {
 		if resp.StatusCode == 404 {
 			util.Logger.Info(fmt.Sprintf("User %s not found, skipping", upn), zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
@@ -302,6 +310,8 @@ func (c *Client) DeleteGroupMember(groupId string, memberId string) error {
 		return err
 	}
 
+	defer resp.Body.Close()
+
 	if resp.StatusCode != 204 {
 		if resp.StatusCode == 404 {
 			util.Logger.Info(fmt.Sprintf("User %s not found, skipping", memberId), zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
@@ -331,6 +341,8 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 	if err != nil {
 		return nil, err
 	}
+
+	defer resp.Body.Close()
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -390,6 +402,8 @@ func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -422,6 +436,8 @@ func (c *Client) GetApplicationRoles(appId string) (*GetApplicationRolesResponse
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -448,6 +464,8 @@ func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmen
 	if err != nil {
 		return nil, err
 	}
+
+	defer resp.Body.Close()
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -518,6 +536,8 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 		return nil, err
 	}
 
+	defer resp.Body.Close()
+
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -549,6 +569,8 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 	if err != nil {
 		return nil
 	}
+
+	defer resp.Body.Close()
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
