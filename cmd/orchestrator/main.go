@@ -43,7 +43,7 @@ func metricsHandler() gin.HandlerFunc {
 // @Success      204
 // @Router       /azure2aws [post]
 func runAzure2Aws(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
 }
 
 // PostAws2K8s             godoc
@@ -54,7 +54,7 @@ func runAzure2Aws(c *gin.Context) {
 // @Success      204
 // @Router       /aws2k8s [post]
 func runAws2K8s(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
 }
 
 // AwsMapping             godoc
@@ -65,7 +65,7 @@ func runAws2K8s(c *gin.Context) {
 // @Success      204
 // @Router       /awsmapping [post]
 func runAwsMapping(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
 }
 
 // CapSvc2Azure            godoc
@@ -76,7 +76,7 @@ func runAwsMapping(c *gin.Context) {
 // @Success      204
 // @Router       /capsvc2azure [post]
 func runCapSvc2Azure(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
 }
 
 // main
@@ -128,6 +128,9 @@ func main() {
 	router := gin.Default()
 	router.GET("/metrics", metricsHandler())
 	router.POST("/azure2aws", runAzure2Aws)
+	router.POST("/awsmapping", runAwsMapping)
+	router.POST("/aws2k8s", runAws2K8s)
+	router.POST("/capsvc2azure", runCapSvc2Azure)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	srv := &http.Server{
 		Addr:    ":8080",
