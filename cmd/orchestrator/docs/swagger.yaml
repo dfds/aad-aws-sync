@@ -1,0 +1,16 @@
+info:
+  contact: {}
+  title: AAD AWS Sync
+paths:
+  /albums:
+    post:
+      description: Triggers a run of the Azure2AWS Job and returns success
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      summary: Trigger a run of the Azure2AWS Job
+      tags:
+      - azure2aws
+swagger: "2.0"
