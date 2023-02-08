@@ -15,7 +15,41 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/albums": {
+        "/aws2k8s": {
+            "post": {
+                "description": "Triggers a run of the AWS2K8s Job and returns success",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "aws2k8s"
+                ],
+                "summary": "Trigger a run of the AWS2K8s Job",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/awsmapping": {
+            "post": {
+                "description": "Triggers a run of the AwsMapping Job and returns success",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "awsmapping"
+                ],
+                "summary": "Trigger a run of the AwsMapping Job",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/azure2aws": {
             "post": {
                 "description": "Triggers a run of the Azure2AWS Job and returns success",
                 "produces": [
@@ -26,8 +60,25 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger a run of the Azure2AWS Job",
                 "responses": {
-                    "200": {
-                        "description": "OK"
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/capsvc2azure": {
+            "post": {
+                "description": "Triggers a run of the CapSvc2Azure Job and returns success",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "capsvc2azure"
+                ],
+                "summary": "Trigger a run of the CapSvc2Azure Job",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }

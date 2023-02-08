@@ -40,9 +40,42 @@ func metricsHandler() gin.HandlerFunc {
 // @Description  Triggers a run of the Azure2AWS Job and returns success
 // @Tags         azure2aws
 // @Produce      json
-// @Success      200
-// @Router       /albums [post]
+// @Success      204
+// @Router       /azure2aws [post]
 func runAzure2Aws(c *gin.Context) {
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+}
+
+// PostAws2K8s             godoc
+// @Summary      Trigger a run of the AWS2K8s Job
+// @Description  Triggers a run of the AWS2K8s Job and returns success
+// @Tags         aws2k8s
+// @Produce      json
+// @Success      204
+// @Router       /aws2k8s [post]
+func runAws2K8s(c *gin.Context) {
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+}
+
+// AwsMapping             godoc
+// @Summary      Trigger a run of the AwsMapping Job
+// @Description  Triggers a run of the AwsMapping Job and returns success
+// @Tags         awsmapping
+// @Produce      json
+// @Success      204
+// @Router       /awsmapping [post]
+func runAwsMapping(c *gin.Context) {
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
+}
+
+// CapSvc2Azure            godoc
+// @Summary      Trigger a run of the CapSvc2Azure Job
+// @Description  Triggers a run of the CapSvc2Azure Job and returns success
+// @Tags         capsvc2azure
+// @Produce      json
+// @Success      204
+// @Router       /capsvc2azure [post]
+func runCapSvc2Azure(c *gin.Context) {
 	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not yet configured"})
 }
 
@@ -82,7 +115,6 @@ func main() {
 				log.Fatal(err)
 			}
 		}
-
 		s.StartBlocking()
 	}()
 
@@ -92,19 +124,6 @@ func main() {
 
 		app.Listen(":8081")
 	}()
-
-	// httpServer := &http.Server{Addr: ":8080"}
-	// go func() {
-	// 	<-ctx.Done()
-	// 	util.Logger.Info("Shutting down HTTP server")
-	// 	if err := httpServer.Shutdown(context.Background()); err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }()
-
-	// if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-	// 	log.Fatal(err)
-	// }
 
 	router := gin.Default()
 	router.GET("/metrics", metricsHandler())

@@ -2,15 +2,48 @@ info:
   contact: {}
   title: AAD AWS Sync
 paths:
-  /albums:
+  /aws2k8s:
+    post:
+      description: Triggers a run of the AWS2K8s Job and returns success
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Trigger a run of the AWS2K8s Job
+      tags:
+      - aws2k8s
+  /awsmapping:
+    post:
+      description: Triggers a run of the AwsMapping Job and returns success
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Trigger a run of the AwsMapping Job
+      tags:
+      - awsmapping
+  /azure2aws:
     post:
       description: Triggers a run of the Azure2AWS Job and returns success
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "204":
+          description: No Content
       summary: Trigger a run of the Azure2AWS Job
       tags:
       - azure2aws
+  /capsvc2azure:
+    post:
+      description: Triggers a run of the CapSvc2Azure Job and returns success
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Trigger a run of the CapSvc2Azure Job
+      tags:
+      - capsvc2azure
 swagger: "2.0"
