@@ -26,8 +26,8 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger a run of the AWS2K8s Job",
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "201": {
+                        "description": "Created"
                     }
                 }
             }
@@ -43,8 +43,8 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger a run of the AwsMapping Job",
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "201": {
+                        "description": "Created"
                     }
                 }
             }
@@ -60,8 +60,8 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger a run of the Azure2AWS Job",
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "201": {
+                        "description": "Created"
                     }
                 }
             }
@@ -77,8 +77,17 @@ const docTemplate = `{
                 ],
                 "summary": "Trigger a run of the CapSvc2Azure Job",
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "201": {
+                        "description": "Created"
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "description": "Conflict"
+                    },
+                    "500": {
+                        "description": "Internal Server Error"
                     }
                 }
             }

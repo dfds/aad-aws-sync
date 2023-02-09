@@ -3,12 +3,13 @@ package orchestrator
 import (
 	"context"
 	"fmt"
-	"go.dfds.cloud/aad-aws-sync/internal/config"
-	"go.dfds.cloud/aad-aws-sync/internal/handler"
-	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"math/rand"
 	"sync"
 	"time"
+
+	"go.dfds.cloud/aad-aws-sync/internal/config"
+	"go.dfds.cloud/aad-aws-sync/internal/handler"
+	"go.dfds.cloud/aad-aws-sync/internal/util"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -98,44 +99,40 @@ func (o *Orchestrator) CapSvcToAadSyncProgress() bool {
 }
 
 func (o *Orchestrator) Init(conf config.Config) {
-	if conf.Scheduler.EnableCapsvc2Azure {
-		o.Jobs[CapabilityServiceToAzureAdName] = &Job{
-			name:    CapabilityServiceToAzureAdName,
-			status:  o.capSvcToAadSyncStatus,
-			context: o.ctx,
-			wg:      o.wg,
-			handler: handler.Capsvc2AadHandler,
-		}
+	o.Jobs[CapabilityServiceToAzureAdName] = &Job{
+		Name:            CapabilityServiceToAzureAdName,
+		Status:          o.capSvcToAadSyncStatus,
+		context:         o.ctx,
+		wg:              o.wg,
+		handler:         handler.Capsvc2AadHandler,
+		ScheduleEnabled: conf.Scheduler.EnableCapsvc2Azure,
 	}
 
-	if conf.Scheduler.EnableAzure2Aws {
-		o.Jobs[AzureAdToAwsName] = &Job{
-			name:    AzureAdToAwsName,
-			status:  o.aadToAwsSyncStatus,
-			context: o.ctx,
-			wg:      o.wg,
-			handler: handler.Azure2AwsHandler,
-		}
+	o.Jobs[AzureAdToAwsName] = &Job{
+		Name:            AzureAdToAwsName,
+		Status:          o.aadToAwsSyncStatus,
+		context:         o.ctx,
+		wg:              o.wg,
+		handler:         handler.Azure2AwsHandler,
+		ScheduleEnabled: conf.Scheduler.EnableAzure2Aws,
 	}
 
-	if conf.Scheduler.EnableAwsMapping {
-		o.Jobs[AwsMappingName] = &Job{
-			name:    AwsMappingName,
-			status:  o.awsMappingStatus,
-			context: o.ctx,
-			wg:      o.wg,
-			handler: handler.AwsMappingHandler,
-		}
+	o.Jobs[AwsMappingName] = &Job{
+		Name:            AwsMappingName,
+		Status:          o.awsMappingStatus,
+		context:         o.ctx,
+		wg:              o.wg,
+		handler:         handler.AwsMappingHandler,
+		ScheduleEnabled: conf.Scheduler.EnableAwsMapping,
 	}
 
-	if conf.Scheduler.EnableAws2K8s {
-		o.Jobs[AwsToKubernetesName] = &Job{
-			name:    AwsToKubernetesName,
-			status:  o.awsToK8sSyncStatus,
-			context: o.ctx,
-			wg:      o.wg,
-			handler: handler.Aws2K8sHandler,
-		}
+	o.Jobs[AwsToKubernetesName] = &Job{
+		Name:            AwsToKubernetesName,
+		Status:          o.awsToK8sSyncStatus,
+		context:         o.ctx,
+		wg:              o.wg,
+		handler:         handler.Aws2K8sHandler,
+		ScheduleEnabled: conf.Scheduler.EnableAws2K8s,
 	}
 
 	// Commented out by command of Emil I
@@ -146,36 +143,37 @@ func (o *Orchestrator) Init(conf config.Config) {
 }
 
 type Job struct {
-	name    string
-	status  *SyncStatus
-	context context.Context
-	handler func(ctx context.Context) error
-	wg      *sync.WaitGroup
+	Name            string
+	Status          *SyncStatus
+	context         context.Context
+	handler         func(ctx context.Context) error
+	wg              *sync.WaitGroup
+	ScheduleEnabled bool
 }
 
 func (j *Job) Run() {
-	if j.status.InProgress() {
-		util.Logger.Warn("Can't start Job because Job is already in progress.", zap.String("jobName", j.name))
+	if j.Status.InProgress() {
+		util.Logger.Warn("Can't start Job because Job is already in progress.", zap.String("jobName", j.Name))
 		return
 	}
-	j.status.SetStatus(true)
+	j.Status.SetStatus(true)
 	j.wg.Add(1)
 	currentJobsGauge.Inc()
-	currentJobStatus.WithLabelValues(j.name).Set(1)
-	util.Logger.Warn("Job started", zap.String("jobName", j.name))
+	currentJobStatus.WithLabelValues(j.Name).Set(1)
+	util.Logger.Warn("Job started", zap.String("jobName", j.Name))
 
 	go func() {
 		defer j.wg.Done()
 		err := j.handler(j.context)
 		if err != nil {
-			jobFailedCount.WithLabelValues(j.name).Inc()
+			jobFailedCount.WithLabelValues(j.Name).Inc()
 		} else {
-			jobSuccessfulCount.WithLabelValues(j.name).Inc()
+			jobSuccessfulCount.WithLabelValues(j.Name).Inc()
 		}
 		currentJobsGauge.Dec()
-		currentJobStatus.WithLabelValues(j.name).Set(0)
-		j.status.SetStatus(false)
-		util.Logger.Warn("Job ended", zap.String("jobName", j.name))
+		currentJobStatus.WithLabelValues(j.Name).Set(0)
+		j.Status.SetStatus(false)
+		util.Logger.Warn("Job ended", zap.String("jobName", j.Name))
 
 	}()
 }

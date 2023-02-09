@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"go.dfds.cloud/aad-aws-sync/internal/middleware"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"go.dfds.cloud/aad-aws-sync/internal/middleware"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
@@ -41,10 +42,24 @@ func metricsHandler() gin.HandlerFunc {
 // @Description  Triggers a run of the Azure2AWS Job and returns success
 // @Tags         azure2aws
 // @Produce      json
-// @Success      204
+// @Success      201
+// @Failure      404
+// @Failure      409
+// @Failure      500
 // @Router       /azure2aws [post]
 func runAzure2Aws(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
+	orc := middleware.GetOrchestrator(c)
+
+	if orc.Jobs["aadToAws"] != nil {
+		if !orc.Jobs["aadToAws"].Status.InProgress() {
+			orc.Jobs["aadToAws"].Run()
+			c.IndentedJSON(http.StatusCreated, gin.H{"message": "job created"})
+		} else {
+			c.IndentedJSON(http.StatusConflict, gin.H{"message": "job in progress"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not found"})
+	}
 }
 
 // PostAws2K8s             godoc
@@ -52,10 +67,24 @@ func runAzure2Aws(c *gin.Context) {
 // @Description  Triggers a run of the AWS2K8s Job and returns success
 // @Tags         aws2k8s
 // @Produce      json
-// @Success      204
+// @Success      201
+// @Failure      404
+// @Failure      409
+// @Failure      500
 // @Router       /aws2k8s [post]
 func runAws2K8s(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
+	orc := middleware.GetOrchestrator(c)
+
+	if orc.Jobs["awsToK8s"] != nil {
+		if !orc.Jobs["awsToK8s"].Status.InProgress() {
+			orc.Jobs["awsToK8s"].Run()
+			c.IndentedJSON(http.StatusCreated, gin.H{"message": "job created"})
+		} else {
+			c.IndentedJSON(http.StatusConflict, gin.H{"message": "job in progress"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not found"})
+	}
 }
 
 // AwsMapping             godoc
@@ -63,10 +92,24 @@ func runAws2K8s(c *gin.Context) {
 // @Description  Triggers a run of the AwsMapping Job and returns success
 // @Tags         awsmapping
 // @Produce      json
-// @Success      204
+// @Success      201
+// @Failure      404
+// @Failure      409
+// @Failure      500
 // @Router       /awsmapping [post]
 func runAwsMapping(c *gin.Context) {
-	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
+	orc := middleware.GetOrchestrator(c)
+
+	if orc.Jobs["awsMapping"] != nil {
+		if !orc.Jobs["awsMapping"].Status.InProgress() {
+			orc.Jobs["awsMapping"].Run()
+			c.IndentedJSON(http.StatusCreated, gin.H{"message": "job created"})
+		} else {
+			c.IndentedJSON(http.StatusConflict, gin.H{"message": "job in progress"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not found"})
+	}
 }
 
 // CapSvc2Azure            godoc
@@ -74,12 +117,24 @@ func runAwsMapping(c *gin.Context) {
 // @Description  Triggers a run of the CapSvc2Azure Job and returns success
 // @Tags         capsvc2azure
 // @Produce      json
-// @Success      204
+// @Success      201
+// @Failure      404
+// @Failure      409
+// @Failure      500
 // @Router       /capsvc2azure [post]
 func runCapSvc2Azure(c *gin.Context) {
 	orc := middleware.GetOrchestrator(c)
-	orc.Jobs["fakejob"].Run()
-	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
+
+	if orc.Jobs["capSvcToAad"] != nil {
+		if !orc.Jobs["capSvcToAad"].Status.InProgress() {
+			orc.Jobs["capSvcToAad"].Run()
+			c.IndentedJSON(http.StatusCreated, gin.H{"message": "job created"})
+		} else {
+			c.IndentedJSON(http.StatusConflict, gin.H{"message": "job in progress"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not found"})
+	}
 }
 
 // main
@@ -111,7 +166,10 @@ func main() {
 		util.Logger.Info("Initialising Orchestrator")
 		for _, job := range orc.Jobs {
 			_, err := s.Every(conf.Scheduler.Frequency).DoWithJobDetails(func(j *orchestrator.Job, c gocron.Job) {
-				j.Run()
+				// If conf flag is set to not schedule job, do not do it!
+				if j.ScheduleEnabled {
+					j.Run()
+				}
 			}, job)
 
 			if err != nil {

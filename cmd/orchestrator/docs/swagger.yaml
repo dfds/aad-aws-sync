@@ -8,8 +8,8 @@ paths:
       produces:
       - application/json
       responses:
-        "204":
-          description: No Content
+        "201":
+          description: Created
       summary: Trigger a run of the AWS2K8s Job
       tags:
       - aws2k8s
@@ -19,8 +19,8 @@ paths:
       produces:
       - application/json
       responses:
-        "204":
-          description: No Content
+        "201":
+          description: Created
       summary: Trigger a run of the AwsMapping Job
       tags:
       - awsmapping
@@ -30,8 +30,8 @@ paths:
       produces:
       - application/json
       responses:
-        "204":
-          description: No Content
+        "201":
+          description: Created
       summary: Trigger a run of the Azure2AWS Job
       tags:
       - azure2aws
@@ -41,8 +41,14 @@ paths:
       produces:
       - application/json
       responses:
-        "204":
-          description: No Content
+        "201":
+          description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
       summary: Trigger a run of the CapSvc2Azure Job
       tags:
       - capsvc2azure
