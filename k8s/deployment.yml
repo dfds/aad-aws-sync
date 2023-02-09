@@ -35,6 +35,8 @@ spec:
           value: info
         - name: AAS_AWS_SSOREGION
           value: eu-west-1
+        - name: GIN_MODE
+          value: release
         envFrom:
           - secretRef:
               name: aad-aws-sync
