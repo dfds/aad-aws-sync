@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"go.dfds.cloud/aad-aws-sync/internal/middleware"
 	"log"
 	"net/http"
 	"os"
@@ -76,6 +77,8 @@ func runAwsMapping(c *gin.Context) {
 // @Success      204
 // @Router       /capsvc2azure [post]
 func runCapSvc2Azure(c *gin.Context) {
+	orc := middleware.GetOrchestrator(c)
+	orc.Jobs["fakejob"].Run()
 	c.IndentedJSON(http.StatusNotImplemented, gin.H{"message": "job not yet configured"})
 }
 
@@ -102,10 +105,10 @@ func main() {
 	s.SingletonModeAll()
 
 	backgroundJobWg := &sync.WaitGroup{}
+	orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg)
+	orc.Init(conf)
 	go func() {
 		util.Logger.Info("Initialising Orchestrator")
-		orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg)
-		orc.Init(conf)
 		for _, job := range orc.Jobs {
 			_, err := s.Every(conf.Scheduler.Frequency).DoWithJobDetails(func(j *orchestrator.Job, c gocron.Job) {
 				j.Run()
@@ -126,6 +129,8 @@ func main() {
 	}()
 
 	router := gin.Default()
+	router.Use(middleware.AddOrchestrator(orc))
+
 	router.GET("/metrics", metricsHandler())
 	router.POST("/azure2aws", runAzure2Aws)
 	router.POST("/awsmapping", runAwsMapping)
