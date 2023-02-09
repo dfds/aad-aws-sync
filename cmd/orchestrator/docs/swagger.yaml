@@ -10,6 +10,12 @@ paths:
       responses:
         "201":
           description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
       summary: Trigger a run of the AWS2K8s Job
       tags:
       - aws2k8s
@@ -21,6 +27,12 @@ paths:
       responses:
         "201":
           description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
       summary: Trigger a run of the AwsMapping Job
       tags:
       - awsmapping
@@ -32,6 +44,12 @@ paths:
       responses:
         "201":
           description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
       summary: Trigger a run of the Azure2AWS Job
       tags:
       - azure2aws
