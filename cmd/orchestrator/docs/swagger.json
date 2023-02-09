@@ -2,8 +2,10 @@
     "swagger": "2.0",
     "info": {
         "title": "AAD AWS Sync",
-        "contact": {}
+        "contact": {},
+        "version": "1"
     },
+    "basePath": "/api/v1",
     "paths": {
         "/aws2k8s": {
             "post": {

@@ -124,9 +124,9 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
+	Version:          "1",
 	Host:             "",
-	BasePath:         "",
+	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "AAD AWS Sync",
 	Description:      "",

@@ -1,6 +1,8 @@
+basePath: /api/v1
 info:
   contact: {}
   title: AAD AWS Sync
+  version: "1"
 paths:
   /aws2k8s:
     post:

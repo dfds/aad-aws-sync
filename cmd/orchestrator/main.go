@@ -144,6 +144,8 @@ func runCapSvc2Azure(c *gin.Context) {
 // - Background jobs via Orchestrator
 // - HTTP server
 // @title           AAD AWS Sync
+// @version 1
+// @basePath /api/v1
 func main() {
 	util.InitializeLogger()
 	defer util.Logger.Sync()
@@ -189,12 +191,17 @@ func main() {
 	router := gin.Default()
 	router.Use(middleware.AddOrchestrator(orc))
 
-	router.GET("/metrics", metricsHandler())
-	router.POST("/azure2aws", runAzure2Aws)
-	router.POST("/awsmapping", runAwsMapping)
-	router.POST("/aws2k8s", runAws2K8s)
-	router.POST("/capsvc2azure", runCapSvc2Azure)
+	v1 := router.Group("/api/v1")
+	{
+		v1.POST("/azure2aws", runAzure2Aws)
+		v1.POST("/awsmapping", runAwsMapping)
+		v1.POST("/aws2k8s", runAws2K8s)
+		v1.POST("/capsvc2azure", runCapSvc2Azure)
+	}
+
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/metrics", metricsHandler())
+
 	srv := &http.Server{
 		Addr:    ":8080",
 		Handler: router,
