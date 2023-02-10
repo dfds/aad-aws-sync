@@ -1,0 +1,75 @@
+basePath: /api/v1
+info:
+  contact: {}
+  title: AAD AWS Sync
+  version: "1"
+paths:
+  /aws2k8s:
+    post:
+      description: Triggers a run of the AWS2K8s Job and returns success
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+      summary: Trigger a run of the AWS2K8s Job
+      tags:
+      - aws2k8s
+  /awsmapping:
+    post:
+      description: Triggers a run of the AwsMapping Job and returns success
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+      summary: Trigger a run of the AwsMapping Job
+      tags:
+      - awsmapping
+  /azure2aws:
+    post:
+      description: Triggers a run of the Azure2AWS Job and returns success
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+      summary: Trigger a run of the Azure2AWS Job
+      tags:
+      - azure2aws
+  /capsvc2azure:
+    post:
+      description: Triggers a run of the CapSvc2Azure Job and returns success
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+      summary: Trigger a run of the CapSvc2Azure Job
+      tags:
+      - capsvc2azure
+swagger: "2.0"
