@@ -15,6 +15,7 @@ require (
 	github.com/gin-gonic/gin v1.8.2
 	github.com/go-co-op/gocron v1.18.0
 	github.com/gofiber/fiber/v2 v2.42.0
+	github.com/joomcode/errorx v1.1.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/segmentio/kafka-go v0.4.38
