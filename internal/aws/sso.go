@@ -50,7 +50,6 @@ func (m *ManageSso) GetGroupByName(val string) *identityStoreTypes.Group {
 }
 
 // GetAccountsMissingCapabilityPermissionSet
-// TODO: Rewrite/simplify process
 func (m *ManageSso) GetAccountsMissingCapabilityPermissionSet(client *ssoadmin.Client, ssoInstanceArn string, capabilityPermissionSetArn string, ssoGroupPrefix string, awsAccountPrefix string) ([]*GetAccountsMissingCapabilityPermissionSetResponse, error) {
 	var accountsWithMissingPermissionSet []*GetAccountsMissingCapabilityPermissionSetResponse
 	awsAccountsProvisionedWithCapabilityPermissions, err := GetAccountsWithProvisionedPermissionSet(client, ssoInstanceArn, capabilityPermissionSetArn)
