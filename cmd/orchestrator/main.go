@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"go.uber.org/zap"
 	"log"
 	"net/http"
 	"os"
@@ -223,13 +224,13 @@ func main() {
 	// kill -9 is syscall. SIGKILL but can"t be catch, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutdown Server ...")
+	util.Logger.Info("Shutdown Server ...")
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server Shutdown:", err)
+		util.Logger.Fatal("Server shutdown", zap.Error(err))
 	}
 
-	log.Println("Server exiting")
+	util.Logger.Info("Server exiting")
 
 	backgroundJobWg.Wait()
 	util.Logger.Info("All background jobs stopped")

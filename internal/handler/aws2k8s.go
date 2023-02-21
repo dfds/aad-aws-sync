@@ -43,7 +43,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 		assumedRole, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{RoleArn: &conf.Aws.AssumableRoles.SsoManagementArn, RoleSessionName: &roleSessionName})
 		if err != nil {
-			log.Printf("unable to assume role %s, %v", conf.Aws.AssumableRoles.SsoManagementArn, err)
+			util.Logger.Info(fmt.Sprintf("unable to assume role %s, %v", conf.Aws.AssumableRoles.SsoManagementArn, err), zap.String("jobName", AwsToKubernetesName))
 			return err
 		}
 

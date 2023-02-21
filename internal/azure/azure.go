@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -244,14 +243,8 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 
 	defer resp.Body.Close()
 
-	rawData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	if resp.StatusCode != 204 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
 	}
 
 	return nil
@@ -264,7 +257,7 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 
 	serialised, err := json.Marshal(requestPayload)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members/$ref", groupId), bytes.NewBuffer([]byte(serialised)))
@@ -522,7 +515,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 
 	serialised, err := json.Marshal(requestPayload)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/appRoleAssignments", groupId), bytes.NewBuffer([]byte(serialised)))
@@ -544,8 +537,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 	}
 
 	if resp.StatusCode != 201 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+		return nil, errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
 	}
 
 	var payload *AssignGroupToApplicationResponse
@@ -572,14 +564,8 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 
 	defer resp.Body.Close()
 
-	rawData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil
-	}
-
 	if resp.StatusCode != 204 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
 	}
 
 	return nil
