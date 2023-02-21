@@ -11,6 +11,8 @@ type Config struct {
 		CapabilityPermissionSetArn     string `json:"capabilityPermissionSetArn"`
 		CapabilityLogsPermissionSetArn string `json:"capabilityLogsPermissionSetArn"`
 		CapabilityLogsAwsAccountAlias  string `json:"capabilityLogsAwsAccountAlias"`
+		SharedEcrPullPermissionSetArn  string `json:"sharedEcrPullPermissionSetArn"`
+		SharedEcrPullAwsAccountAlias   string `json:"sharedEcrPullAwsAccountAlias"`
 		AccountNamePrefix              string `json:"accountNamePrefix"`
 		SsoRegion                      string `json:"ssoRegion"`
 		AssumableRoles                 struct {

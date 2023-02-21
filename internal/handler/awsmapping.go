@@ -13,7 +13,6 @@ import (
 	dconfig "go.dfds.cloud/aad-aws-sync/internal/config"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
-	"log"
 )
 
 const AwsMappingName = "awsMapping"
@@ -79,12 +78,39 @@ func AwsMappingHandler(ctx context.Context) error {
 	}
 
 	// CapabilityLog PermissionSet
-	acc := manageSso.GetAccountByName(conf.Aws.CapabilityLogsAwsAccountAlias)
-	if acc == nil {
-		log.Fatal("Unable to find CapabilityLogsAwsAccount by alias")
+	err = addToSharedRole(manageSso, ssoClient, addToSharedRoleRequest{
+		Name:                "CapabilityLog",
+		AwsAccountNameAlias: conf.Aws.CapabilityLogsAwsAccountAlias,
+		PermissionSetArn:    conf.Aws.CapabilityLogsPermissionSetArn,
+		SsoInstanceArn:      conf.Aws.SsoInstanceArn,
+		ctx:                 ctx,
+	})
+	if err != nil {
+		return err
 	}
 
-	resp, err := manageSso.GetGroupsNotAssignedToAccountWithPermissionSet(ssoClient, conf.Aws.SsoInstanceArn, conf.Aws.CapabilityLogsPermissionSetArn, *acc.Id, CAPABILITY_GROUP_PREFIX)
+	// Shared ECR pull PermissionSet
+	err = addToSharedRole(manageSso, ssoClient, addToSharedRoleRequest{
+		Name:                "SharedECRPull",
+		AwsAccountNameAlias: conf.Aws.SharedEcrPullAwsAccountAlias,
+		PermissionSetArn:    conf.Aws.SharedEcrPullPermissionSetArn,
+		SsoInstanceArn:      conf.Aws.SsoInstanceArn,
+		ctx:                 ctx,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addToSharedRole(manageSso *aws.ManageSso, ssoClient *ssoadmin.Client, req addToSharedRoleRequest) error {
+	acc := manageSso.GetAccountByName(req.AwsAccountNameAlias)
+	if acc == nil {
+		return errors.New(fmt.Sprintf("Unable to find AWS account by alias %s", req.AwsAccountNameAlias))
+	}
+
+	resp, err := manageSso.GetGroupsNotAssignedToAccountWithPermissionSet(ssoClient, req.SsoInstanceArn, req.PermissionSetArn, *acc.Id, CAPABILITY_GROUP_PREFIX)
 	if err != nil {
 		return err
 	}
@@ -99,20 +125,19 @@ func AwsMappingHandler(ctx context.Context) error {
 	for _, grp := range resp.GroupsAssigned {
 		assignedGroupNames = append(assignedGroupNames, *grp.DisplayName)
 	}
-	util.Logger.Info("Groups with assigned access", zap.String("jobName", AwsMappingName), zap.Strings("groups", assignedGroupNames))
 
 	for _, grp := range resp.GroupsNotAssigned {
 		select {
-		case <-ctx.Done():
+		case <-req.ctx.Done():
 			util.Logger.Info("Job cancelled", zap.String("jobName", AwsMappingName))
 			return nil
 		default:
 		}
 
-		fmt.Printf("Assigning CapabilityLog access to %s\n", *grp.DisplayName)
+		util.Logger.Info(fmt.Sprintf("Assigning access to %s\n", *grp.DisplayName), zap.String("jobName", AwsMappingName), zap.String("permissionSet", req.Name))
 		_, err := ssoClient.CreateAccountAssignment(context.TODO(), &ssoadmin.CreateAccountAssignmentInput{
-			InstanceArn:      &conf.Aws.SsoInstanceArn,
-			PermissionSetArn: &conf.Aws.CapabilityLogsPermissionSetArn,
+			InstanceArn:      &req.SsoInstanceArn,
+			PermissionSetArn: &req.PermissionSetArn,
 			PrincipalId:      grp.GroupId,
 			PrincipalType:    "GROUP",
 			TargetId:         acc.Id,
@@ -124,4 +149,12 @@ func AwsMappingHandler(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type addToSharedRoleRequest struct {
+	Name                string
+	AwsAccountNameAlias string
+	PermissionSetArn    string
+	SsoInstanceArn      string
+	ctx                 context.Context
 }
