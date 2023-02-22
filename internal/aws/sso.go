@@ -119,7 +119,10 @@ func InitManageSso(cfg aws.Config, identityStoreArn string) (*ManageSso, error) 
 	orgClient := organizations.NewFromConfig(cfg)
 	identityStoreClient := identitystore.NewFromConfig(cfg)
 
-	awsAccounts := GetAccounts(orgClient)
+	awsAccounts, err := GetAccounts(orgClient)
+	if err != nil {
+		return nil, err
+	}
 	groups, err := GetGroups(identityStoreClient, identityStoreArn)
 	if err != nil {
 		return nil, err

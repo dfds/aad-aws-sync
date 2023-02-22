@@ -1,7 +1,6 @@
 package util
 
 import (
-	"log"
 	"time"
 )
 
@@ -47,21 +46,23 @@ func NewTokenClient(authFunc func() (*RefreshAuthResponse, error)) *TokenClient 
 	}
 }
 
-func (c *TokenClient) RefreshAuth() {
+func (c *TokenClient) RefreshAuth() error {
 	if c.Token != nil {
 		if !c.Token.IsExpired() {
 			//fmt.Println("Token has not expired, reusing token from cache")
-			return
+			return nil
 		}
 	}
 
 	resp, err := c.refreshAuthFunc()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	currentTime := time.Now()
 	c.Token = &BearerToken{}
 	c.Token.expiresIn = currentTime.Unix() + resp.ExpiresIn
 	c.Token.token = resp.AccessToken
+
+	return nil
 }

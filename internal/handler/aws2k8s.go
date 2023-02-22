@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -56,7 +55,10 @@ func Aws2K8sHandler(ctx context.Context) error {
 	orgClient := organizations.NewFromConfig(cfg)
 
 	// Get all AWS accounts
-	accounts := aws.GetAccounts(orgClient)
+	accounts, err := aws.GetAccounts(orgClient)
+	if err != nil {
+		return err
+	}
 	ssoRoleMappings := []aws.SsoRoleMapping{}
 
 	// Put AWS accounts in a useful format
@@ -72,11 +74,14 @@ func Aws2K8sHandler(ctx context.Context) error {
 	}
 
 	// Populate rolename rolearn from api+config
-	resp := aws.GetSsoRoles(ssoRoleMappings, conf.Aws.AssumableRoles.CapabilityAccountRoleName)
+	resp, err := aws.GetSsoRoles(ssoRoleMappings, conf.Aws.AssumableRoles.CapabilityAccountRoleName)
+	if err != nil {
+		return err
+	}
 
 	amResp, err := k8s.LoadAwsAuthMapRoles()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// Loop through ConfigMap entries, check if an entry exists where the equivalent AWS role doesn't. If that's the case, remove the entry from aws-auth ConfigMap
@@ -151,14 +156,14 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 	payload, err := yaml.Marshal(&amResp.Mappings)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	amResp.ConfigMap.Data["mapRoles"] = string(payload)
 
 	err = k8s.UpdateAwsAuthMapRoles(amResp.ConfigMap)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	return nil
 }
