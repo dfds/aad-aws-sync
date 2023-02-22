@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"go.dfds.cloud/aad-aws-sync/internal/event"
 	"go.uber.org/zap"
 	"log"
 	"net/http"
@@ -165,6 +166,7 @@ func main() {
 	backgroundJobWg := &sync.WaitGroup{}
 	orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg)
 	orc.Init(conf)
+	// Orchestrator goroutine; Handles scheduling jobs
 	go func() {
 		util.Logger.Info("Initialising Orchestrator")
 		for _, job := range orc.Jobs {
@@ -182,6 +184,15 @@ func main() {
 		s.StartBlocking()
 	}()
 
+	// Event handling
+	go func() {
+		err = event.StartEventHandlers(ctx, conf)
+		if err != nil {
+			stop()
+		}
+	}()
+
+	// Profiling endpoint
 	go func() {
 		app := fiber.New(fiber.Config{DisableStartupMessage: true})
 		app.Use(pprof.New())
@@ -215,6 +226,7 @@ func main() {
 		Handler: router,
 	}
 
+	// HTTP server
 	go func() {
 		// service connections
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
