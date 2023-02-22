@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	orgTypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
-	"log"
 	"strings"
 )
 
@@ -109,7 +108,7 @@ func RemoveAccountPrefix(prefix string, val string) string {
 	return strings.TrimPrefix(val, prefix)
 }
 
-func InitManageSso(cfg aws.Config, identityStoreArn string) *ManageSso {
+func InitManageSso(cfg aws.Config, identityStoreArn string) (*ManageSso, error) {
 	payload := &ManageSso{
 		awsAccountsByAlias: map[string]*orgTypes.Account{},
 		awsAccountsById:    map[string]*orgTypes.Account{},
@@ -120,10 +119,13 @@ func InitManageSso(cfg aws.Config, identityStoreArn string) *ManageSso {
 	orgClient := organizations.NewFromConfig(cfg)
 	identityStoreClient := identitystore.NewFromConfig(cfg)
 
-	awsAccounts := GetAccounts(orgClient)
+	awsAccounts, err := GetAccounts(orgClient)
+	if err != nil {
+		return nil, err
+	}
 	groups, err := GetGroups(identityStoreClient, identityStoreArn)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	for _, acc := range awsAccounts {
@@ -154,5 +156,5 @@ func InitManageSso(cfg aws.Config, identityStoreArn string) *ManageSso {
 		payload.awsSsoGroupByName[*group.DisplayName] = newGroup
 	}
 
-	return payload
+	return payload, nil
 }

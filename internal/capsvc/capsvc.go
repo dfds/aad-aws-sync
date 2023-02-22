@@ -25,10 +25,16 @@ type Config struct {
 	Scope        string `json:"scope"`
 }
 
-func (c *Client) prepareHttpRequest(h *http.Request) {
-	c.RefreshAuth()
+func (c *Client) prepareHttpRequest(h *http.Request) error {
+	err := c.RefreshAuth()
+	if err != nil {
+		return err
+	}
+
 	h.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.tokenClient.Token.GetToken()))
 	h.Header.Set("User-Agent", "aad-aws-sync - github.com/dfds/aad-aws-sync")
+
+	return nil
 }
 
 func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
@@ -36,7 +42,10 @@ func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -60,14 +69,15 @@ func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
 	return payload, nil
 }
 
-func (c *Client) RefreshAuth() {
+func (c *Client) RefreshAuth() error {
 	envToken := env.GetString("AAS_CAPSVC_TOKEN", "")
 	if envToken != "" {
 		c.tokenClient.Token = util.NewBearerToken(envToken)
-		return
+		return nil
 	}
 
-	c.tokenClient.RefreshAuth()
+	err := c.tokenClient.RefreshAuth()
+	return err
 }
 
 func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {

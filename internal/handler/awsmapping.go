@@ -48,7 +48,10 @@ func AwsMappingHandler(ctx context.Context) error {
 
 	ssoClient := ssoadmin.NewFromConfig(cfg)
 
-	manageSso := aws.InitManageSso(cfg, conf.Aws.IdentityStoreArn)
+	manageSso, err := aws.InitManageSso(cfg, conf.Aws.IdentityStoreArn)
+	if err != nil {
+		return err
+	}
 
 	// Capability PermissionSet
 	accountsWithMissingPermissionSet, err := manageSso.GetAccountsMissingCapabilityPermissionSet(ssoClient, conf.Aws.SsoInstanceArn, conf.Aws.CapabilityPermissionSetArn, CAPABILITY_GROUP_PREFIX, conf.Aws.AccountNamePrefix)
@@ -63,7 +66,7 @@ func AwsMappingHandler(ctx context.Context) error {
 			return nil
 		default:
 		}
-		fmt.Printf("Assigning Capability access to group %s for account %s\n", *resp.Group.DisplayName, *resp.Account.Name)
+		util.Logger.Info(fmt.Sprintf("Assigning Capability access to group %s for account %s\n", *resp.Group.DisplayName, *resp.Account.Name), zap.String("jobName", AwsMappingName))
 		_, err := ssoClient.CreateAccountAssignment(context.TODO(), &ssoadmin.CreateAccountAssignmentInput{
 			InstanceArn:      &conf.Aws.SsoInstanceArn,
 			PermissionSetArn: &conf.Aws.CapabilityPermissionSetArn,

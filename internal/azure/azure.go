@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,14 +30,15 @@ type Config struct {
 	ClientSecret string `json:"clientSecret"`
 }
 
-func (c *Client) RefreshAuth() {
+func (c *Client) RefreshAuth() error {
 	envToken := env.GetString("AAS_AZURE_TOKEN", "")
 	if envToken != "" {
 		c.tokenClient.Token = util.NewBearerToken(envToken)
-		return
+		return nil
 	}
 
-	c.tokenClient.RefreshAuth()
+	err := c.tokenClient.RefreshAuth()
+	return err
 }
 
 func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
@@ -79,16 +79,25 @@ func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
 	return tokenResponse, nil
 }
 
-func (c *Client) prepareHttpRequest(req *http.Request) {
-	c.RefreshAuth()
+func (c *Client) prepareHttpRequest(req *http.Request) error {
+	err := c.RefreshAuth()
+	if err != nil {
+		return err
+	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.tokenClient.Token.GetToken()))
 	req.Header.Set("User-Agent", "aad-aws-sync - github.com/dfds/aad-aws-sync")
+	return nil
 }
 
-func (c *Client) prepareJsonRequest(req *http.Request) {
-	c.prepareHttpRequest(req)
+func (c *Client) prepareJsonRequest(req *http.Request) error {
+	err := c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
 	req.Header.Set("Content-Type", "application/json")
+	return nil
 }
 
 func (c *Client) HasTokenExpired() bool {
@@ -100,7 +109,10 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	urlQueryValues := req.URL.Query()
 	urlQueryValues.Set("$filter", fmt.Sprintf("startswith(displayName,'%s')", prefix))
@@ -132,7 +144,10 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.prepareHttpRequest(req)
+		err = c.prepareHttpRequest(req)
+		if err != nil {
+			return nil, err
+		}
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -164,7 +179,10 @@ func (c *Client) GetAdministrativeUnits() (*GetAdministrativeUnitsResponse, erro
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	urlQueryValues := req.URL.Query()
 	urlQueryValues.Set("$filter", "startswith(displayName,'Team - Cloud Engineering')")
@@ -204,7 +222,10 @@ func (c *Client) CreateAdministrativeUnitGroup(ctx context.Context, requestPaylo
 	if err != nil {
 		return nil, err
 	}
-	c.prepareJsonRequest(req)
+	err = c.prepareJsonRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -235,7 +256,10 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 	if err != nil {
 		return err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -244,14 +268,8 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 
 	defer resp.Body.Close()
 
-	rawData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	if resp.StatusCode != 204 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
 	}
 
 	return nil
@@ -264,14 +282,17 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 
 	serialised, err := json.Marshal(requestPayload)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members/$ref", groupId), bytes.NewBuffer([]byte(serialised)))
 	if err != nil {
 		return err
 	}
-	c.prepareJsonRequest(req)
+	err = c.prepareJsonRequest(req)
+	if err != nil {
+		return err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -303,7 +324,10 @@ func (c *Client) DeleteGroupMember(groupId string, memberId string) error {
 	if err != nil {
 		return err
 	}
-	c.prepareJsonRequest(req)
+	err = c.prepareJsonRequest(req)
+	if err != nil {
+		return err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -335,7 +359,11 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -363,7 +391,10 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 		if err != nil {
 			return nil, err
 		}
-		c.prepareHttpRequest(req)
+		err = c.prepareHttpRequest(req)
+		if err != nil {
+			return nil, err
+		}
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -395,7 +426,10 @@ func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -424,7 +458,10 @@ func (c *Client) GetApplicationRoles(appId string) (*GetApplicationRolesResponse
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	urlQueryValues := req.URL.Query()
 	urlQueryValues.Set("$filter", fmt.Sprintf("appId eq '%s'", appId))
@@ -458,7 +495,10 @@ func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmen
 	if err != nil {
 		return nil, err
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -486,7 +526,10 @@ func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmen
 		if err != nil {
 			return nil, err
 		}
-		c.prepareHttpRequest(req)
+		err = c.prepareHttpRequest(req)
+		if err != nil {
+			return nil, err
+		}
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -522,14 +565,17 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 
 	serialised, err := json.Marshal(requestPayload)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/appRoleAssignments", groupId), bytes.NewBuffer([]byte(serialised)))
 	if err != nil {
 		return nil, err
 	}
-	c.prepareJsonRequest(req)
+	err = c.prepareJsonRequest(req)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -544,8 +590,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 	}
 
 	if resp.StatusCode != 201 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+		return nil, errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
 	}
 
 	var payload *AssignGroupToApplicationResponse
@@ -563,7 +608,10 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 	if err != nil {
 		return nil
 	}
-	c.prepareHttpRequest(req)
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -572,14 +620,8 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 
 	defer resp.Body.Close()
 
-	rawData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil
-	}
-
 	if resp.StatusCode != 204 {
-		log.Println(string(rawData))
-		log.Fatal(resp.StatusCode)
+		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
 	}
 
 	return nil

@@ -104,7 +104,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 
 		// Check if Capability has a group in Azure AD, if it doesn't create it
 		if resp, ok := groupsInAzure[azureGroupName]; !ok {
-			fmt.Printf("Capability %s doesn't exist in Azure, creating.\n", rootId)
+			util.Logger.Info(fmt.Sprintf("Capability %s doesn't exist in Azure, creating.\n", rootId), zap.String("jobName", CapabilityServiceToAzureAdName))
 			createGroupRequest := azure.CreateAdministrativeUnitGroupRequest{
 				OdataType:       "#Microsoft.Graph.Group",
 				Description:     "[Automated] - aad-aws-sync",
@@ -144,7 +144,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				}
 
 				if !azureGroup.HasMember(capMember.Email) {
-					util.Logger.Info(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email), zap.String("jobName", CapabilityServiceToAzureAdName))
+					util.Logger.Debug(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.AddGroupMember(azureGroup.ID, capMember.Email)
 					if err != nil {
 						return err
@@ -162,7 +162,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				}
 
 				if !capability.HasMember(member.UserPrincipalName) {
-					util.Logger.Info(fmt.Sprintf("Azure group %s contains stale member %s, removing.\n", azureGroup.DisplayName, member.UserPrincipalName), zap.String("jobName", CapabilityServiceToAzureAdName))
+					util.Logger.Debug(fmt.Sprintf("Azure group %s contains stale member %s, removing.\n", azureGroup.DisplayName, member.UserPrincipalName), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.DeleteGroupMember(azureGroup.ID, member.ID)
 					if err != nil {
 						return err

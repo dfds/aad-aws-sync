@@ -17,7 +17,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -31,20 +30,20 @@ type SsoRoleMapping struct {
 	RootId       string
 }
 
-func GetAccounts(client *organizations.Client) []orgTypes.Account {
+func GetAccounts(client *organizations.Client) ([]orgTypes.Account, error) {
 	var maxResults int32 = 20
 	var accounts []orgTypes.Account
 	resps := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{MaxResults: &maxResults})
 	for resps.HasMorePages() { // Due to the limit of only 20 accounts per query and wanting to avoid getting hit by a rate limit, this will take a while if you have a decent amount of AWS accounts
 		page, err := resps.NextPage(context.TODO())
 		if err != nil {
-			log.Fatal(err)
+			return accounts, err
 		}
 
 		accounts = append(accounts, page.Accounts...)
 	}
 
-	return accounts
+	return accounts, nil
 }
 
 func GetGroups(client *identitystore.Client, identityStoreArn string) ([]identityTypes.Group, error) {
@@ -133,7 +132,7 @@ func GetAssignedForPermissionSetInAccount(client *ssoadmin.Client, ssoInstanceAr
 	return payload, nil
 }
 
-func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleMapping {
+func GetSsoRoles(accounts []SsoRoleMapping, roleName string) (map[string]SsoRoleMapping, error) {
 	payload := make(map[string]SsoRoleMapping)
 	rolePathPrefix := "/aws-reserved"
 	roleNamePrefix := "AWSReservedSSO_CapabilityAccess"
@@ -146,7 +145,7 @@ func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleM
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("eu-west-1"), config.WithHTTPClient(CreateHttpClientWithoutKeepAlive()))
 	if err != nil {
-		log.Fatal(err)
+		return payload, err
 	}
 
 	for _, acc := range accounts {
@@ -169,14 +168,16 @@ func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleM
 
 			assumedCfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(*assumedRole.Credentials.AccessKeyId, *assumedRole.Credentials.SecretAccessKey, *assumedRole.Credentials.SessionToken)), config.WithRegion("eu-west-1"))
 			if err != nil {
-				log.Fatalf("unable to load SDK config, %v", err)
+				util.Logger.Error(fmt.Sprintf("unable to load SDK config, %v", err))
+				return
 			}
 
 			// get a new client using the config we just generated
 			assumedClient := iam.NewFromConfig(assumedCfg)
 			resp, err := assumedClient.ListRoles(context.TODO(), &iam.ListRolesInput{PathPrefix: &rolePathPrefix})
 			if err != nil {
-				log.Fatalf("Unable to list IAM roles %v", err)
+				util.Logger.Error(fmt.Sprintf("Unable to list IAM roles %v", err))
+				return
 			}
 
 			for _, role := range resp.Roles {
@@ -193,7 +194,7 @@ func GetSsoRoles(accounts []SsoRoleMapping, roleName string) map[string]SsoRoleM
 
 	waitGroup.Wait()
 
-	return payload
+	return payload, nil
 }
 
 func CreateHttpClientWithoutKeepAlive() *awsHttp.BuildableClient {
