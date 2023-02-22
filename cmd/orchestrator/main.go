@@ -198,6 +198,13 @@ func main() {
 		v1.POST("/awsmapping", runAwsMapping)
 		v1.POST("/aws2k8s", runAws2K8s)
 		v1.POST("/capsvc2azure", runCapSvc2Azure)
+		v1.GET("/mgmt/shutdown", func(c *gin.Context) {
+			go func() {
+				time.Sleep(time.Second * 2)
+				stop()
+			}()
+			c.String(200, "")
+		})
 	}
 
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -214,23 +221,15 @@ func main() {
 			log.Fatalf("listen: %s\n", err)
 		}
 	}()
-	//router.Run("localhost:8080")
 
-	// Wait for interrupt signal to gracefully shutdown the server with
-	// a timeout of 5 seconds.
-	quit := make(chan os.Signal)
-	// kill (no param) default send syscanll.SIGTERM
-	// kill -2 is syscall.SIGINT
-	// kill -9 is syscall. SIGKILL but can"t be catch, so don't need add it
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	util.Logger.Info("Shutdown Server ...")
+	// Blocks until Context (ctx) is cancelled
+	<-ctx.Done()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		util.Logger.Fatal("Server shutdown", zap.Error(err))
+		util.Logger.Info("HTTP Server was unable to shut down gracefully", zap.Error(err))
 	}
 
-	util.Logger.Info("Server exiting")
+	util.Logger.Info("Server shutting down")
 
 	backgroundJobWg.Wait()
 	util.Logger.Info("All background jobs stopped")
