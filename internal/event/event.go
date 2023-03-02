@@ -84,6 +84,8 @@ func StartEventHandlers(ctx context.Context, conf config.Config) error {
 	}
 	defer cleanupOnce.Do(cleanup)
 
+	dlqProducer := kafkautil.NewProducer(errorProducerConfig, authConfig, dialer)
+
 	for {
 		util.Logger.Debug("Awaiting new message from topic")
 		msg, err := consumer.FetchMessage(ctx)
@@ -136,14 +138,20 @@ func StartEventHandlers(ctx context.Context, conf config.Config) error {
 			Msg:   msg.Value,
 		})
 		if err != nil {
-			eventLog.Error("Handler for event failed", zap.Error(err))
-			break // TODO: Trigger graceful shutdown
+			eventLog.Error("Handler for event failed. Forwarding event to DLQ", zap.Error(err))
+			forwardedMsg := msg
+			forwardedMsg.Topic = ""
+			err = dlqProducer.WriteMessages(ctx, forwardedMsg)
+			if err != nil {
+				eventLog.Error("Unable to forward event to DLQ, stopping event loop.", zap.Error(err))
+				break // TODO: Trigger graceful shutdown
+			}
 		}
 
 	CommitOffset:
 		err = commitMsg(ctx, msg, consumer)
 		if err != nil {
-			msgLog.Error("Unable to update commit for consumer group") // TODO: Trigger graceful shutdown
+			msgLog.Error("Unable to update commit for consumer group", zap.Error(err)) // TODO: Trigger graceful shutdown
 		}
 	}
 
