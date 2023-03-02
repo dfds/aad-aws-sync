@@ -268,7 +268,7 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
+		return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	return nil
@@ -586,7 +586,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 	}
 
 	if resp.StatusCode != 201 {
-		return nil, errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
+		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	var payload *AssignGroupToApplicationResponse
@@ -617,7 +617,7 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
+		return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	return nil
