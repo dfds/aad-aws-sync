@@ -2,3 +2,4 @@ internal/test/testdata.json
 .env
 .envrc
 /bin
+.vscode

@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"time"
 )
 
@@ -57,6 +58,9 @@ func (c *TokenClient) RefreshAuth() error {
 	resp, err := c.refreshAuthFunc()
 	if err != nil {
 		return err
+	}
+	if resp == nil {
+		return errors.New("unable to refresh authentication")
 	}
 
 	currentTime := time.Now()
