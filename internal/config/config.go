@@ -35,6 +35,9 @@ type Config struct {
 		Level string `json:"level"`
 		Debug bool   `json:"debug"`
 	}
+	EventHandling struct {
+		Enabled bool `json:"enable"`
+	}
 	Scheduler struct {
 		Frequency          string `json:"scheduleFrequency" default:"30m"`
 		EnableCapsvc2Azure bool   `json:"enableCapsvc2Azure"`

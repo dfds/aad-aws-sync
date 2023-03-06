@@ -417,6 +417,38 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 	return payload, nil
 }
 
+func (c *Client) GetUserViaUPN(upn string) (*GetUserViaUPNResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", upn), nil)
+	if err != nil {
+		return nil, err
+	}
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetUserViaUPNResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
 func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/groups/%s/members", id), nil)
 	if err != nil {

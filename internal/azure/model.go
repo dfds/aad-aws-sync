@@ -84,6 +84,21 @@ type AddGroupMemberRequest struct {
 	OdataId string `json:"@odata.id"`
 }
 
+type GetUserViaUPNResponse struct {
+	OdataContext      string        `json:"@odata.context"`
+	BusinessPhones    []interface{} `json:"businessPhones"`
+	DisplayName       string        `json:"displayName"`
+	GivenName         string        `json:"givenName"`
+	JobTitle          string        `json:"jobTitle"`
+	Mail              string        `json:"mail"`
+	MobilePhone       interface{}   `json:"mobilePhone"`
+	OfficeLocation    interface{}   `json:"officeLocation"`
+	PreferredLanguage interface{}   `json:"preferredLanguage"`
+	Surname           string        `json:"surname"`
+	UserPrincipalName string        `json:"userPrincipalName"`
+	ID                string        `json:"id"`
+}
+
 type CreateAdministrativeUnitGroupResponse struct {
 	OdataContext                  string        `json:"@odata.context"`
 	OdataType                     string        `json:"@odata.type"`

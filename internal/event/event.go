@@ -67,6 +67,8 @@ func StartEventHandlers(ctx context.Context, conf config.Config) error {
 
 	registry := NewRegistry()
 	registry.Register("capability_created", handlers.CapabilityCreatedHandler)
+	registry.Register("member_joined_capability", handlers.MemberJoinedCapabilityHandler)
+	registry.Register("member_left_capability", handlers.MemberLeftCapabilityHandler)
 
 	dialer, err := kafkautil.NewDialer(authConfig)
 	if err != nil {
@@ -144,7 +146,8 @@ func StartEventHandlers(ctx context.Context, conf config.Config) error {
 			err = dlqProducer.WriteMessages(ctx, forwardedMsg)
 			if err != nil {
 				eventLog.Error("Unable to forward event to DLQ, stopping event loop.", zap.Error(err))
-				break // TODO: Trigger graceful shutdown
+				cleanupOnce.Do(cleanup)
+				return err
 			}
 		}
 

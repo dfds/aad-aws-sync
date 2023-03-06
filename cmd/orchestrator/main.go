@@ -185,12 +185,15 @@ func main() {
 	}()
 
 	// Event handling
-	go func() {
-		err = event.StartEventHandlers(ctx, conf)
-		if err != nil {
-			stop()
-		}
-	}()
+	if conf.EventHandling.Enabled {
+		go func() {
+			err = event.StartEventHandlers(ctx, conf)
+			if err != nil {
+				util.Logger.Error("Event loop error, shutting down.", zap.Error(err))
+				stop()
+			}
+		}()
+	}
 
 	// Profiling endpoint
 	go func() {
