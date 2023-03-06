@@ -88,6 +88,9 @@ func (m *ManageSso) GetGroupsNotAssignedToAccountWithPermissionSet(client *ssoad
 	for _, assignment := range resp {
 		if assignment.PrincipalType == "GROUP" {
 			group := m.GetGroupById(*assignment.PrincipalId)
+			if group == nil {
+				continue
+			}
 
 			groupsCurrentlyAssignedByName[*group.DisplayName] = group
 			payload.GroupsAssigned = append(payload.GroupsAssigned, group)
