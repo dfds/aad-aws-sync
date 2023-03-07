@@ -70,6 +70,43 @@ type ScimGetUserResponse struct {
 	} `json:"urn:ietf:params:scim:schemas:extension:enterprise:2.1:User"`
 }
 
+type ScimGetGroupsResponse struct {
+	TotalResults int                     `json:"totalResults"`
+	ItemsPerPage int                     `json:"itemsPerPage"`
+	StartIndex   int                     `json:"startIndex"`
+	Schemas      []string                `json:"schemas"`
+	Resources    []*ScimGetGroupResponse `json:"Resources"`
+}
+
+type ScimCreateGroupRequest struct {
+	DisplayName string `json:"displayName"`
+	Externalid  string `json:"externalid"`
+}
+
+type ScimCreateUserRequest struct {
+	UserName    string `json:"userName"`
+	ExternalID  string `json:"externalId"`
+	DisplayName string `json:"displayName"`
+	Active      bool   `json:"active"`
+	Name        struct {
+		GivenName  string `json:"givenName"`
+		FamilyName string `json:"familyName"`
+	} `json:"name"`
+}
+
+type ScimGetGroupResponse struct {
+	ID         string `json:"id"`
+	ExternalID string `json:"externalId"`
+	Meta       struct {
+		ResourceType string    `json:"resourceType"`
+		Created      time.Time `json:"created"`
+		LastModified time.Time `json:"lastModified"`
+	} `json:"meta"`
+	Schemas     []string      `json:"schemas"`
+	DisplayName string        `json:"displayName"`
+	Members     []interface{} `json:"members"`
+}
+
 type ScimPatchMembersToGroupRequest struct {
 	Schemas    []string                                  `json:"schemas"`
 	Operations []ScimPatchMembersToGroupOperationRequest `json:"Operations"`
