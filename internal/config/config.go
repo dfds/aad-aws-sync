@@ -19,6 +19,10 @@ type Config struct {
 			SsoManagementArn          string `json:"ssoManagementArn"`
 			CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
 		} `json:"assumableRoles"`
+		Scim struct {
+			Endpoint string `json:"endpoint"`
+			Token    string `json:"token"`
+		}
 	} `json:"aws"`
 	Azure struct {
 		TenantId            string `json:"tenantId"`
