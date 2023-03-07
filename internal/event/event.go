@@ -40,7 +40,7 @@ func commitMsg(ctx context.Context, msg kafka.Message, consumer *kafka.Reader) e
 	return nil
 }
 
-func StartEventHandlers(ctx context.Context, conf config.Config) error {
+func StartEventHandlers(ctx context.Context, conf config.Config, wg *sync.WaitGroup) error {
 	var authConfig kafkautil.AuthConfig
 	err := envconfig.Process("AAS_KAFKA_AUTH", &authConfig)
 	if err != nil {
@@ -88,6 +88,8 @@ func StartEventHandlers(ctx context.Context, conf config.Config) error {
 
 	dlqProducer := kafkautil.NewProducer(errorProducerConfig, authConfig, dialer)
 
+	wg.Add(1)
+	defer wg.Done()
 	for {
 		util.Logger.Debug("Awaiting new message from topic")
 		msg, err := consumer.FetchMessage(ctx)

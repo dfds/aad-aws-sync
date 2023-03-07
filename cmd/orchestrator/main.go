@@ -187,7 +187,7 @@ func main() {
 	// Event handling
 	if conf.EventHandling.Enabled {
 		go func() {
-			err = event.StartEventHandlers(ctx, conf)
+			err = event.StartEventHandlers(ctx, conf, backgroundJobWg)
 			if err != nil {
 				util.Logger.Error("Event loop error, shutting down.", zap.Error(err))
 				stop()
