@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/aws"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
@@ -47,6 +48,8 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 		ClientId:     conf.Azure.ClientId,
 		ClientSecret: conf.Azure.ClientSecret,
 	})
+
+	scimClient := aws.CreateScimClient(conf.Aws.Scim.Endpoint, conf.Aws.Scim.Token)
 
 	capabilities, err := capSvcClient.GetCapabilities()
 	if err != nil {
@@ -105,6 +108,28 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 	}
 
 	err = azureClient.AddGroupMember(azureGroup.ID, msg.Payload.MemberEmail)
+	if err != nil {
+		return err
+	}
+
+	aadUser, err := azureClient.GetUserViaUPN(msg.Payload.MemberEmail)
+	if err != nil {
+		return err
+	}
+
+	scimUser, err := scimClient.GetUserViaExternalId(aadUser.ID)
+	if err != nil {
+		msgLog.Info("User is not yet provisioned to AWS. Skipping direct provisioning, letting Azure handle the initial provisioning of user and memberships")
+		return nil
+	}
+
+	scimGroup, err := scimClient.GetGroupViaDisplayName(azureGroupName)
+	if err != nil {
+		msgLog.Info("Group is not yet provisioned to AWS. Skipping direct provisioning, letting Azure handle the initial provisioning of group")
+		return nil
+	}
+
+	err = scimClient.PatchAddMembersToGroup(scimGroup.ID, scimUser.ID)
 	if err != nil {
 		return err
 	}

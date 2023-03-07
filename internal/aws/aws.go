@@ -40,7 +40,7 @@ type ScimClient struct {
 	http     *http.Client
 }
 
-func NewScimClient(endpoint string, token string) *ScimClient {
+func CreateScimClient(endpoint string, token string) *ScimClient {
 	sc := &ScimClient{
 		token:    token,
 		endpoint: endpoint,
@@ -293,7 +293,7 @@ func (c *ScimClient) PatchAddMembersToGroup(groupId string, members ...string) e
 	return nil
 }
 
-func (c *ScimClient) PatchRemoveMembersToGroup(groupId string, members ...string) error {
+func (c *ScimClient) PatchRemoveMembersFromGroup(groupId string, members ...string) error {
 	reqPatch := NewScimPatchRemoveMembersToGroupRequest(members...)
 	reqPayload, err := json.Marshal(reqPatch)
 	if err != nil {

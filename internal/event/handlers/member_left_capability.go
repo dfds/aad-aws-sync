@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/aws"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
@@ -47,6 +48,8 @@ func MemberLeftCapabilityHandler(ctx context.Context, event model.HandlerContext
 		ClientId:     conf.Azure.ClientId,
 		ClientSecret: conf.Azure.ClientSecret,
 	})
+
+	scimClient := aws.CreateScimClient(conf.Aws.Scim.Endpoint, conf.Aws.Scim.Token)
 
 	capabilities, err := capSvcClient.GetCapabilities()
 	if err != nil {
@@ -108,7 +111,25 @@ func MemberLeftCapabilityHandler(ctx context.Context, event model.HandlerContext
 	if err != nil {
 		return err
 	}
+
 	err = azureClient.DeleteGroupMember(azureGroup.ID, aadUser.ID)
+	if err != nil {
+		return err
+	}
+
+	scimUser, err := scimClient.GetUserViaExternalId(aadUser.ID)
+	if err != nil {
+		msgLog.Info("User is not yet provisioned to AWS. Skipping direct provisioning, letting Azure handle the synchronisation of user and memberships")
+		return nil
+	}
+
+	scimGroup, err := scimClient.GetGroupViaDisplayName(azureGroupName)
+	if err != nil {
+		msgLog.Info("Group is not yet provisioned to AWS. Skipping direct provisioning, letting Azure handle synchronisation of group")
+		return nil
+	}
+
+	err = scimClient.PatchRemoveMembersFromGroup(scimGroup.ID, scimUser.ID)
 	if err != nil {
 		return err
 	}
