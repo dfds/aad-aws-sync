@@ -55,5 +55,6 @@ func NewDialer(authConfig AuthConfig) (*kafka.Dialer, error) {
 		DualStack:     true,
 		TLS:           tlsConfig,
 		SASLMechanism: saslMechanism,
+		ClientID:      "aadawssync",
 	}, nil
 }
