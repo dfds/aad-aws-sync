@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -269,7 +268,7 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
+		return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	return nil
@@ -303,16 +302,14 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 
 	if resp.StatusCode != 204 {
 		if resp.StatusCode == 404 {
-			util.Logger.Info(fmt.Sprintf("User %s not found, skipping", upn), zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
-			return nil
+			return AdUserNotFound.New(fmt.Sprintf("User %s not found, skipping", upn))
 		}
 
 		if resp.StatusCode == 403 {
-			util.Logger.Info("Response returned with unexpected 403. Skipping entry", zap.String("jobName", "capSvcToAad")) //TODO: Move this outside of azure client
-			return nil
+			return HttpError403.New("Response returned with unexpected 403. Skipping entry")
 		}
 
-		return errors.New(fmt.Sprintf("%d", resp.StatusCode))
+		return HttpError.New(fmt.Sprintf("Unexpected HTTP response. Status code: %d", resp.StatusCode))
 	}
 
 	return nil
@@ -347,11 +344,10 @@ func (c *Client) DeleteGroupMember(groupId string, memberId string) error {
 			return nil
 		}
 
-		return errors.New(fmt.Sprintf("%d", resp.StatusCode))
+		return HttpError.New(fmt.Sprintf("Unexpected HTTP response. Status code: %d", resp.StatusCode))
 	}
 
 	return nil
-
 }
 
 func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnitMembersResponse, error) {
@@ -590,7 +586,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 	}
 
 	if resp.StatusCode != 201 {
-		return nil, errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
+		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	var payload *AssignGroupToApplicationResponse
@@ -621,7 +617,7 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Response returned unexpected status code: %d", resp.StatusCode))
+		return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	return nil

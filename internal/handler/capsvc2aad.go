@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/joomcode/errorx"
 
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
@@ -122,15 +123,8 @@ func Capsvc2AadHandler(ctx context.Context) error {
 			}
 
 			azureGroup = &azure.Group{ID: resp.ID, DisplayName: resp.DisplayName}
-			//continue
 		} else {
 			azureGroup = resp
-			//fmt.Printf("Deleting group %s\n", azureGroup.DisplayName)
-			//err = azureClient.DeleteAdministrativeUnitGroup(aUnit.ID, azureGroup.ID)
-			//if err != nil {
-			//	log.Fatal(err)
-			//}
-			//continue
 		}
 
 		// Add missing members in Azure AD group
@@ -147,6 +141,15 @@ func Capsvc2AadHandler(ctx context.Context) error {
 					util.Logger.Debug(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.AddGroupMember(azureGroup.ID, capMember.Email)
 					if err != nil {
+						if errorx.IsOfType(err, azure.AdUserNotFound) {
+							util.Logger.Debug(err.Error(), zap.String("jobName", CapabilityServiceToAzureAdName))
+							continue
+						}
+						if errorx.IsOfType(err, azure.HttpError403) {
+							util.Logger.Debug(err.Error(), zap.String("jobName", CapabilityServiceToAzureAdName))
+							continue
+						}
+
 						return err
 					}
 				}

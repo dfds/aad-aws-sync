@@ -3,12 +3,13 @@ package capsvc
 import (
 	"encoding/json"
 	"fmt"
-	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"io"
-	"k8s.io/utils/env"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"go.dfds.cloud/aad-aws-sync/internal/util"
+	"k8s.io/utils/env"
 )
 
 type Client struct {
@@ -53,6 +54,10 @@ func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+	}
 
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -107,7 +112,7 @@ func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, err
+		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 	}
 
 	var tokenResponse *util.RefreshAuthResponse
