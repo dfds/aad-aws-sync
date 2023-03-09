@@ -66,7 +66,7 @@ func StartEventHandlers(ctx context.Context, conf config.Config, wg *sync.WaitGr
 	}
 
 	registry := NewRegistry()
-	registry.Register("capability_created", handlers.CapabilityCreatedHandler)
+	//registry.Register("capability_created", handlers.CapabilityCreatedHandler)
 	registry.Register("member_joined_capability", handlers.MemberJoinedCapabilityHandler)
 	registry.Register("member_left_capability", handlers.MemberLeftCapabilityHandler)
 
