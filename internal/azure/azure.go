@@ -309,6 +309,11 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 			return HttpError403.New("Response returned with unexpected 403. Skipping entry")
 		}
 
+		if resp.StatusCode == 400 {
+			util.Logger.Info("Response returned with unexpected 400. User might already be a member.")
+			return nil
+		}
+
 		return HttpError.New(fmt.Sprintf("Unexpected HTTP response. Status code: %d", resp.StatusCode))
 	}
 
@@ -412,6 +417,38 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 		nextLink = buffer.OdataNextLink
 
 		payload.Value = append(payload.Value, buffer.Value...)
+	}
+
+	return payload, nil
+}
+
+func (c *Client) GetUserViaUPN(upn string) (*GetUserViaUPNResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", upn), nil)
+	if err != nil {
+		return nil, err
+	}
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetUserViaUPNResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
 	}
 
 	return payload, nil

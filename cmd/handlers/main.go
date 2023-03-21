@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"go.dfds.cloud/aad-aws-sync/internal/event_handlers"
 	"os"
 	"os/signal"
 	"sync"
@@ -87,7 +88,7 @@ func main() {
 	}
 
 	// Iniate the dialer
-	dialer := kafkautil.NewDialer(authConfig)
+	dialer, _ := kafkautil.NewDialer(authConfig)
 
 	// Initiate consumer
 	consumer := kafkautil.NewConsumer(consumerConfig, authConfig, dialer)

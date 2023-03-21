@@ -19,6 +19,10 @@ type Config struct {
 			SsoManagementArn          string `json:"ssoManagementArn"`
 			CapabilityAccountRoleName string `json:"capabilityAccountRoleName"`
 		} `json:"assumableRoles"`
+		Scim struct {
+			Endpoint string `json:"endpoint"`
+			Token    string `json:"token"`
+		}
 	} `json:"aws"`
 	Azure struct {
 		TenantId            string `json:"tenantId"`
@@ -34,6 +38,9 @@ type Config struct {
 	Log struct {
 		Level string `json:"level"`
 		Debug bool   `json:"debug"`
+	}
+	EventHandling struct {
+		Enabled bool `json:"enable"`
 	}
 	Scheduler struct {
 		Frequency          string `json:"scheduleFrequency" default:"30m"`

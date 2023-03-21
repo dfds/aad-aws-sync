@@ -1,7 +1,10 @@
 package aws
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	awsHttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -17,6 +20,7 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,6 +32,298 @@ type SsoRoleMapping struct {
 	RoleName     string
 	RoleArn      string
 	RootId       string
+}
+
+type ScimClient struct {
+	token    string
+	endpoint string
+	http     *http.Client
+}
+
+func CreateScimClient(endpoint string, token string) *ScimClient {
+	sc := &ScimClient{
+		token:    token,
+		endpoint: endpoint,
+	}
+	httpClient := http.DefaultClient
+	sc.http = httpClient
+
+	return sc
+}
+
+func (c *ScimClient) prepareHttpRequest(h *http.Request) error {
+	h.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token))
+	h.Header.Set("User-Agent", "aad-aws-sync - github.com/dfds/aad-aws-sync")
+
+	return nil
+}
+
+func (c *ScimClient) GetUserViaExternalId(id string) (*ScimGetUserResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/scim/v2/Users", c.endpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	urlQueryValues := req.URL.Query()
+	urlQueryValues.Set("filter", fmt.Sprintf("externalId eq \"%s\"", id))
+	req.URL.RawQuery = urlQueryValues.Encode()
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *ScimGetUsersResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if payload.TotalResults == 1 {
+		return payload.Resources[0], nil
+	}
+
+	return nil, errors.New("response didn't return 1 exact match")
+}
+
+func (c *ScimClient) GetGroupViaDisplayName(name string) (*ScimGetGroupResponse, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/scim/v2/Groups", c.endpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	urlQueryValues := req.URL.Query()
+	urlQueryValues.Set("filter", fmt.Sprintf("displayName eq \"%s\"", name))
+	req.URL.RawQuery = urlQueryValues.Encode()
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *ScimGetGroupsResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if payload.TotalResults == 1 {
+		return payload.Resources[0], nil
+	}
+
+	return nil, errors.New("response didn't return 1 exact match")
+}
+
+func (c *ScimClient) CreateGroup(data ScimCreateGroupRequest) error {
+	reqPayload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/scim/v2/Groups", c.endpoint), bytes.NewBuffer(reqPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 201 {
+		if resp.StatusCode == 409 {
+			return nil
+		}
+		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (c *ScimClient) RemoveUser(id string) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/scim/v2/Users/%s", c.endpoint, id), nil)
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (c *ScimClient) RemoveGroup(id string) error {
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/scim/v2/Groups/%s", c.endpoint, id), nil)
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (c *ScimClient) CreateUser(data ScimCreateUserRequest) error {
+	reqPayload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/scim/v2/Users", c.endpoint), bytes.NewBuffer(reqPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 201 {
+		if resp.StatusCode == 409 {
+			return nil
+		}
+		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (c *ScimClient) PatchAddMembersToGroup(groupId string, members ...string) error {
+	reqPatch := NewScimPatchAddMembersToGroupRequest(members...)
+	reqPayload, err := json.Marshal(reqPatch)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", fmt.Sprintf("%s/scim/v2/Groups/%s", c.endpoint, groupId), bytes.NewBuffer(reqPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (c *ScimClient) PatchRemoveMembersFromGroup(groupId string, members ...string) error {
+	reqPatch := NewScimPatchRemoveMembersToGroupRequest(members...)
+	reqPayload, err := json.Marshal(reqPatch)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", fmt.Sprintf("%s/scim/v2/Groups/%s", c.endpoint, groupId), bytes.NewBuffer(reqPayload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 204 {
+		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+	}
+
+	return nil
 }
 
 func GetAccounts(client *organizations.Client) ([]orgTypes.Account, error) {

@@ -16,7 +16,8 @@ type ProducerConfig struct {
 // AuthConfig allows one to configure auth with a plain SASL
 // authnetication mechanism to the Kafka brokers.
 type AuthConfig struct {
-	Brokers  []string `required:"true"`
-	Username string   `required:"true"`
-	Password string   `required:"true"`
+	Brokers          []string          `required:"true"`
+	Mechanism        string            `required:"true"`
+	MechanismOptions map[string]string `envconfig:"MECHANISM_OPTIONS"`
+	Tls              bool              `required:"true"`
 }
