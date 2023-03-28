@@ -37,6 +37,8 @@ spec:
           value: eu-west-1
         - name: GIN_MODE
           value: release
+        - name: AAS_EVENTHANDLING_ENABLED
+          value: "true"
         envFrom:
           - secretRef:
               name: aad-aws-sync
