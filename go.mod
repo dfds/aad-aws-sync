@@ -11,7 +11,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.16.15
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.15.13
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.1
-	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/gin-gonic/gin v1.8.2
 	github.com/go-co-op/gocron v1.18.0
 	github.com/gofiber/fiber/v2 v2.42.0
