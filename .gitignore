@@ -4,3 +4,4 @@ internal/test/testdata.json
 /bin
 .vscode
 cover.out
+build
