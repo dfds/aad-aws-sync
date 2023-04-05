@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -21,7 +22,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	err = event.StartEventHandlers(ctx, conf)
+	backgroundJobWg := &sync.WaitGroup{}
+
+	err = event.StartEventHandlers(ctx, conf, backgroundJobWg)
 	if err != nil {
 		util.Logger.Fatal("", zap.Error(err))
 	}

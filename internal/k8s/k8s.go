@@ -65,12 +65,7 @@ func (r *RoleMapping) ContainsGroup(val string) bool {
 	return false
 }
 
-func LoadAwsAuthMapRoles() (*LoadRoleMapResponse, error) {
-	client, err := getK8sClient()
-	if err != nil {
-		return nil, err
-	}
-
+func LoadAwsAuthMapRoles(client kubernetes.Interface) (*LoadRoleMapResponse, error) {
 	cm, err := client.CoreV1().ConfigMaps("kube-system").Get(context.TODO(), "aws-auth", metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -91,17 +86,12 @@ func LoadAwsAuthMapRoles() (*LoadRoleMapResponse, error) {
 	}, nil
 }
 
-func UpdateAwsAuthMapRoles(cm *v1.ConfigMap) error {
-	client, err := getK8sClient()
-	if err != nil {
-		return err
-	}
-
-	_, err = client.CoreV1().ConfigMaps("kube-system").Update(context.TODO(), cm, metav1.UpdateOptions{})
+func UpdateAwsAuthMapRoles(client kubernetes.Interface, cm *v1.ConfigMap) error {
+	_, err := client.CoreV1().ConfigMaps("kube-system").Update(context.TODO(), cm, metav1.UpdateOptions{})
 	return err
 }
 
-func getK8sClient() (*kubernetes.Clientset, error) {
+func GetK8sClient() (*kubernetes.Clientset, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", env.GetString("KUBECONFIG", ""))
 	if err != nil {
 		return nil, err

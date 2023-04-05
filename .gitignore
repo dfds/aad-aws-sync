@@ -3,3 +3,5 @@ internal/test/testdata.json
 .envrc
 /bin
 .vscode
+cover.out
+build

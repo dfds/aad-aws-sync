@@ -54,6 +54,11 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 	orgClient := organizations.NewFromConfig(cfg)
 
+	k8sClient, err := k8s.GetK8sClient()
+	if err != nil {
+		return err
+	}
+
 	// Get all AWS accounts
 	accounts, err := aws.GetAccounts(orgClient)
 	if err != nil {
@@ -79,7 +84,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 		return err
 	}
 
-	amResp, err := k8s.LoadAwsAuthMapRoles()
+	amResp, err := k8s.LoadAwsAuthMapRoles(k8sClient)
 	if err != nil {
 		return err
 	}
@@ -161,7 +166,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 
 	amResp.ConfigMap.Data["mapRoles"] = string(payload)
 
-	err = k8s.UpdateAwsAuthMapRoles(amResp.ConfigMap)
+	err = k8s.UpdateAwsAuthMapRoles(k8sClient, amResp.ConfigMap)
 	if err != nil {
 		return err
 	}
