@@ -32,8 +32,10 @@ type Config struct {
 		ApplicationObjectId string `json:"applicationObjectId"`
 	} `json:"azure"`
 	CapSvc struct { // Capability-Service
-		Host       string `json:"host"`
-		TokenScope string `json:"tokenScope"`
+		Host         string `json:"host"`
+		TokenScope   string `json:"tokenScope"`
+		ClientId     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
 	} `json:"capSvc"`
 	Log struct {
 		Level string `json:"level"`

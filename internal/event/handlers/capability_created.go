@@ -38,8 +38,8 @@ func CapabilityCreatedHandler(ctx context.Context, event model.HandlerContext) e
 	client := capsvc.NewCapSvcClient(capsvc.Config{
 		Host:         conf.CapSvc.Host,
 		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		ClientId:     conf.CapSvc.ClientId,
+		ClientSecret: conf.CapSvc.ClientSecret,
 		Scope:        conf.CapSvc.TokenScope,
 	})
 
