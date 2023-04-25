@@ -56,7 +56,7 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 		return err
 	}
 
-	for _, capa := range capabilities.Items {
+	for _, capa := range capabilities {
 		if capa.ID == msg.Payload.CapabilityId {
 			capability = capa
 			break

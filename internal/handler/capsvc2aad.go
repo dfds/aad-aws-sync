@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/joomcode/errorx"
-
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
@@ -58,7 +57,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 		return err
 	}
 
-	for _, capability := range capabilities.Items {
+	for _, capability := range capabilities {
 		_, err := capability.GetContext()
 		if err == nil {
 			capabilitiesByRootId[capability.RootID] = capability

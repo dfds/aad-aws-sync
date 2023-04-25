@@ -56,7 +56,7 @@ func MemberLeftCapabilityHandler(ctx context.Context, event model.HandlerContext
 		return err
 	}
 
-	for _, capa := range capabilities.Items {
+	for _, capa := range capabilities {
 		if capa.ID == msg.Payload.CapabilityId {
 			capability = capa
 			break

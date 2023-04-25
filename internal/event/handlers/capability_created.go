@@ -48,7 +48,7 @@ func CapabilityCreatedHandler(ctx context.Context, event model.HandlerContext) e
 		return err
 	}
 
-	for _, capa := range capabilities.Items {
+	for _, capa := range capabilities {
 		if capa.ID == msg.Payload.CapabilityID {
 			capability = capa
 			break
