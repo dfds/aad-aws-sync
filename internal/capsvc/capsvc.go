@@ -38,8 +38,8 @@ func (c *Client) prepareHttpRequest(h *http.Request) error {
 	return nil
 }
 
-func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/capabilities", c.config.Host), nil)
+func (c *Client) GetCapabilities() ([]*GetCapabilitiesResponseContextCapability, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/system/legacy/aad-aws-sync", c.config.Host), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *Client) GetCapabilities() (*GetCapabilitiesResponse, error) {
 		return nil, err
 	}
 
-	var payload *GetCapabilitiesResponse
+	var payload []*GetCapabilitiesResponseContextCapability
 
 	err = json.Unmarshal(rawData, &payload)
 	if err != nil {
