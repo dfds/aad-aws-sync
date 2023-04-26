@@ -38,7 +38,7 @@ spec:
         - name: GIN_MODE
           value: release
         - name: AAS_EVENTHANDLING_ENABLED
-          value: "true"
+          value: "false"
         envFrom:
           - secretRef:
               name: aad-aws-sync
