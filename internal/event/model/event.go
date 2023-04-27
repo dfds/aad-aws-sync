@@ -1,14 +1,14 @@
 package model
 
 type Envelope struct {
-	Name    string `json:"eventName"`
-	Version string `json:"version"`
+	Type      string `json:"type"`
+	MessageId string `json:"messageId"`
 }
 
 type EnvelopeWithPayload[T any] struct {
-	Name    string `json:"eventName"`
-	Version string `json:"version"`
-	Payload T      `json:"payload"`
+	Type      string `json:"type"`
+	MessageId string `json:"messageId"`
+	Payload   T      `json:"payload"`
 }
 
 type HandlerContext struct {
