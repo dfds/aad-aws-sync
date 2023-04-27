@@ -19,7 +19,7 @@ type capabilityCreated struct {
 }
 
 func CapabilityCreatedHandler(ctx context.Context, event model.HandlerContext) error {
-	msgLog := util.Logger.With(zap.String("event_handler", "CapabilityCreatedHandler"), zap.String("event", event.Event.Name))
+	msgLog := util.Logger.With(zap.String("event_handler", "CapabilityCreatedHandler"), zap.String("event", event.Event.Type))
 	msgLog.Info("New Capability discovered. Creating entries in AAD")
 	msg, err := GetEventWithPayloadFromMsg[capabilityCreated](event.Msg)
 	if err != nil {

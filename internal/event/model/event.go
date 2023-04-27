@@ -8,7 +8,7 @@ type Envelope struct {
 type EnvelopeWithPayload[T any] struct {
 	Type      string `json:"type"`
 	MessageId string `json:"messageId"`
-	Payload   T      `json:"payload"`
+	Payload   T      `json:"data"`
 }
 
 type HandlerContext struct {
