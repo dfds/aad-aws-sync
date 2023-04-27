@@ -67,7 +67,7 @@ func StartEventHandlers(ctx context.Context, conf config.Config, wg *sync.WaitGr
 
 	registry := NewRegistry()
 	//registry.Register("capability_created", handlers.CapabilityCreatedHandler)
-	registry.Register("member_joined_capability", handlers.MemberJoinedCapabilityHandler)
+	registry.Register("user-has-joined-capability", handlers.MemberJoinedCapabilityHandler)
 	registry.Register("member_left_capability", handlers.MemberLeftCapabilityHandler)
 
 	dialer, err := kafkautil.NewDialer(authConfig)
@@ -120,7 +120,7 @@ func StartEventHandlers(ctx context.Context, conf config.Config, wg *sync.WaitGr
 			goto CommitOffset
 		}
 
-		if event == nil || event.Name == "" {
+		if event == nil || event.Type == "" {
 			msgLog.Info("Unable to recognise event envelope, skipping message")
 			goto CommitOffset
 		}
@@ -129,9 +129,9 @@ func StartEventHandlers(ctx context.Context, conf config.Config, wg *sync.WaitGr
 			zap.Int("partition", msg.Partition),
 			zap.Int64("offset", msg.Offset),
 			zap.String("key", string(msg.Key)),
-			zap.String("eventName", event.Name))
+			zap.String("eventName", event.Type))
 
-		handler = registry.GetHandler(event.Name)
+		handler = registry.GetHandler(event.Type)
 		if handler == nil {
 			eventLog.Info("No handler registered for event, skipping.")
 			goto CommitOffset

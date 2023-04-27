@@ -15,17 +15,18 @@ import (
 )
 
 type memberJoinedCapability struct {
-	CapabilityId string `json:"capabilityId"`
-	MemberEmail  string `json:"memberEmail"`
+	CapabilityID string `json:"capabilityId"`
+	MembershipID string `json:"membershipId"`
+	UserID       string `json:"userId"`
 }
 
 func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerContext) error {
-	msgLog := util.Logger.With(zap.String("event_handler", "MemberJoinedCapabilityHandler"), zap.String("event", event.Event.Name))
+	msgLog := util.Logger.With(zap.String("event_handler", "MemberJoinedCapabilityHandler"), zap.String("event", event.Event.Type))
 	msg, err := GetEventWithPayloadFromMsg[memberJoinedCapability](event.Msg)
 	if err != nil {
 		return err
 	}
-	msgLog = msgLog.With(zap.String("capabilityId", msg.Payload.CapabilityId))
+	msgLog = msgLog.With(zap.String("capabilityId", msg.Payload.CapabilityID))
 
 	var capability *capsvc.GetCapabilitiesResponseContextCapability
 
@@ -57,7 +58,7 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 	}
 
 	for _, capa := range capabilities {
-		if capa.ID == msg.Payload.CapabilityId {
+		if capa.ID == msg.Payload.CapabilityID {
 			capability = capa
 			break
 		}
@@ -67,7 +68,7 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 		return errors.New("capability from event not found in Capability-Service")
 	}
 	msgLog = msgLog.With(zap.String("capabilityRootId", capability.RootID))
-	msgLog.Info(fmt.Sprintf("%s joined Capability %s. Updating AAD group", msg.Payload.MemberEmail, capability.RootID))
+	msgLog.Info(fmt.Sprintf("%s joined Capability %s. Updating AAD group", msg.Payload.UserID, capability.RootID))
 
 	aUnits, err := azureClient.GetAdministrativeUnits()
 	if err != nil {
@@ -107,12 +108,12 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 		azureGroup = resp
 	}
 
-	err = azureClient.AddGroupMember(azureGroup.ID, msg.Payload.MemberEmail)
+	err = azureClient.AddGroupMember(azureGroup.ID, msg.Payload.UserID)
 	if err != nil {
 		return err
 	}
 
-	aadUser, err := azureClient.GetUserViaUPN(msg.Payload.MemberEmail)
+	aadUser, err := azureClient.GetUserViaUPN(msg.Payload.UserID)
 	if err != nil {
 		return err
 	}
