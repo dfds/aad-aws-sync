@@ -23,6 +23,7 @@ type Config struct {
 			Endpoint string `json:"endpoint"`
 			Token    string `json:"token"`
 		}
+		OrganizationsParentId string `json:"organizationsParentId"`
 	} `json:"aws"`
 	Azure struct {
 		TenantId            string `json:"tenantId"`

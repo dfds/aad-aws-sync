@@ -60,7 +60,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 	}
 
 	// Get all AWS accounts
-	accounts, err := aws.GetAccounts(orgClient)
+	accounts, err := aws.GetAccounts(orgClient, conf.Aws.OrganizationsParentId)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
+
 	awsHttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -20,10 +25,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
-	"io"
-	"net/http"
-	"strings"
-	"sync"
 )
 
 type SsoRoleMapping struct {
@@ -326,10 +327,10 @@ func (c *ScimClient) PatchRemoveMembersFromGroup(groupId string, members ...stri
 	return nil
 }
 
-func GetAccounts(client *organizations.Client) ([]orgTypes.Account, error) {
+func GetAccounts(client *organizations.Client, parentId string) ([]orgTypes.Account, error) {
 	var maxResults int32 = 20
 	var accounts []orgTypes.Account
-	resps := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{MaxResults: &maxResults})
+	resps := organizations.NewListAccountsForParentPaginator(client, &organizations.ListAccountsForParentInput{MaxResults: &maxResults, ParentId: &parentId})
 	for resps.HasMorePages() { // Due to the limit of only 20 accounts per query and wanting to avoid getting hit by a rate limit, this will take a while if you have a decent amount of AWS accounts
 		page, err := resps.NextPage(context.TODO())
 		if err != nil {
