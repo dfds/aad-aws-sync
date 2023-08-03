@@ -334,6 +334,7 @@ func GetAccounts(client *organizations.Client, parentId string) ([]orgTypes.Acco
 	for resps.HasMorePages() { // Due to the limit of only 20 accounts per query and wanting to avoid getting hit by a rate limit, this will take a while if you have a decent amount of AWS accounts
 		page, err := resps.NextPage(context.TODO())
 		if err != nil {
+			util.Logger.Sugar().Errorf("Error getting accounts: %v", err)
 			return accounts, err
 		}
 
