@@ -17,6 +17,8 @@ import (
 
 const AwsMappingName = "awsMapping"
 
+const AwsAccountStatusSuspendedValue = "SUSPENDED"
+
 func AwsMappingHandler(ctx context.Context) error {
 	conf, err := dconfig.LoadConfig()
 	if err != nil {
@@ -67,8 +69,8 @@ func AwsMappingHandler(ctx context.Context) error {
 		default:
 		}
 
-		if resp.Account.Status == "SUSPENDED" {
-			util.Logger.Debug(fmt.Sprintf("Suspended account detected with missing Capability access - %s (%s), skipping account", *resp.Account.Name, *resp.Account.Id), zap.String("jobName", AwsMappingName))
+		if resp.Account.Status == AwsAccountStatusSuspendedValue {
+			util.Logger.Warn(fmt.Sprintf("Suspended account detected with missing Capability access - %s (%s), skipping account", *resp.Account.Name, *resp.Account.Id), zap.String("jobName", AwsMappingName))
 			continue
 		}
 
