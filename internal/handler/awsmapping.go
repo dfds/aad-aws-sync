@@ -66,6 +66,12 @@ func AwsMappingHandler(ctx context.Context) error {
 			return nil
 		default:
 		}
+
+		if resp.Account.Status == "SUSPENDED" {
+			util.Logger.Debug(fmt.Sprintf("Suspended account detected with missing Capability access - %s (%s), skipping account", *resp.Account.Name, *resp.Account.Id), zap.String("jobName", AwsMappingName))
+			continue
+		}
+
 		util.Logger.Info(fmt.Sprintf("Assigning Capability access to group %s for account %s\n", *resp.Group.DisplayName, *resp.Account.Name), zap.String("jobName", AwsMappingName))
 		_, err := ssoClient.CreateAccountAssignment(context.TODO(), &ssoadmin.CreateAccountAssignmentInput{
 			InstanceArn:      &conf.Aws.SsoInstanceArn,
