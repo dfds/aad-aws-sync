@@ -177,10 +177,11 @@ github.com/goccy/go-json/internal/encoder/vm_color_indent
 github.com/goccy/go-json/internal/encoder/vm_indent
 github.com/goccy/go-json/internal/errors
 github.com/goccy/go-json/internal/runtime
-# github.com/gofiber/fiber/v2 v2.43.0
+# github.com/gofiber/fiber/v2 v2.50.0
 ## explicit; go 1.20
 github.com/gofiber/fiber/v2
 github.com/gofiber/fiber/v2/internal/schema
+github.com/gofiber/fiber/v2/log
 github.com/gofiber/fiber/v2/middleware/pprof
 github.com/gofiber/fiber/v2/utils
 # github.com/gogo/protobuf v1.3.2
@@ -211,7 +212,7 @@ github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.1.0
 ## explicit; go 1.12
 github.com/google/gofuzz
-# github.com/google/uuid v1.3.0
+# github.com/google/uuid v1.3.1
 ## explicit
 github.com/google/uuid
 # github.com/imdario/mergo v0.3.6
@@ -229,7 +230,7 @@ github.com/json-iterator/go
 # github.com/kelseyhightower/envconfig v1.4.0
 ## explicit
 github.com/kelseyhightower/envconfig
-# github.com/klauspost/compress v1.16.3
+# github.com/klauspost/compress v1.16.7
 ## explicit; go 1.18
 github.com/klauspost/compress
 github.com/klauspost/compress/flate
@@ -254,10 +255,10 @@ github.com/mailru/easyjson/jwriter
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
 github.com/mattn/go-colorable
-# github.com/mattn/go-isatty v0.0.17
+# github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
-# github.com/mattn/go-runewidth v0.0.14
+# github.com/mattn/go-runewidth v0.0.15
 ## explicit; go 1.9
 github.com/mattn/go-runewidth
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
@@ -279,9 +280,6 @@ github.com/pelletier/go-toml/v2/internal/characters
 github.com/pelletier/go-toml/v2/internal/danger
 github.com/pelletier/go-toml/v2/internal/tracker
 github.com/pelletier/go-toml/v2/unstable
-# github.com/philhofer/fwd v1.1.2
-## explicit; go 1.15
-github.com/philhofer/fwd
 # github.com/pierrec/lz4/v4 v4.1.15
 ## explicit; go 1.14
 github.com/pierrec/lz4/v4
@@ -320,12 +318,6 @@ github.com/rivo/uniseg
 # github.com/robfig/cron/v3 v3.0.1
 ## explicit; go 1.12
 github.com/robfig/cron/v3
-# github.com/savsgio/dictpool v0.0.0-20221023140959-7bf2e61cea94
-## explicit; go 1.13
-github.com/savsgio/dictpool
-# github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee
-## explicit; go 1.20
-github.com/savsgio/gotils/strconv
 # github.com/segmentio/kafka-go v0.4.38
 ## explicit; go 1.15
 github.com/segmentio/kafka-go
@@ -388,16 +380,13 @@ github.com/swaggo/gin-swagger
 # github.com/swaggo/swag v1.8.1
 ## explicit; go 1.18
 github.com/swaggo/swag
-# github.com/tinylib/msgp v1.1.8
-## explicit; go 1.15
-github.com/tinylib/msgp/msgp
 # github.com/ugorji/go/codec v1.2.7
 ## explicit; go 1.11
 github.com/ugorji/go/codec
 # github.com/valyala/bytebufferpool v1.0.0
 ## explicit
 github.com/valyala/bytebufferpool
-# github.com/valyala/fasthttp v1.45.0
+# github.com/valyala/fasthttp v1.50.0
 ## explicit; go 1.20
 github.com/valyala/fasthttp
 github.com/valyala/fasthttp/fasthttpadaptor
@@ -444,11 +433,10 @@ golang.org/x/oauth2/internal
 ## explicit
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.6.0
+# golang.org/x/sys v0.13.0
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
-golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
