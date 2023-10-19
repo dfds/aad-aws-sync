@@ -344,6 +344,34 @@ func GetAccounts(client *organizations.Client, parentId string) ([]orgTypes.Acco
 	return accounts, nil
 }
 
+func GetAllOUsFromParent(ctx context.Context, client *organizations.Client, parentId string) ([]orgTypes.OrganizationalUnit, error) {
+	var maxResults int32 = 20
+	var ou []orgTypes.OrganizationalUnit
+	resp := organizations.NewListOrganizationalUnitsForParentPaginator(client, &organizations.ListOrganizationalUnitsForParentInput{
+		ParentId:   &parentId,
+		MaxResults: &maxResults,
+	})
+
+	for resp.HasMorePages() {
+		page, err := resp.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		ou = append(ou, page.OrganizationalUnits...)
+	}
+
+	for _, o := range ou {
+		recursiveResp, err := GetAllOUsFromParent(ctx, client, *o.Id)
+		if err != nil {
+			return nil, err
+		}
+		ou = append(ou, recursiveResp...)
+	}
+
+	return ou, nil
+}
+
 func GetGroups(client *identitystore.Client, identityStoreArn string) ([]identityTypes.Group, error) {
 	var maxResults int32 = 100
 	var payload []identityTypes.Group
