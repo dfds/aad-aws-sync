@@ -372,6 +372,26 @@ func GetAllOUsFromParent(ctx context.Context, client *organizations.Client, pare
 	return ou, nil
 }
 
+func GetAllAccountsFromOuRecursive(ctx context.Context, client *organizations.Client, parentId string) ([]orgTypes.Account, error) {
+	orgUnits, err := GetAllOUsFromParent(context.TODO(), client, parentId)
+	if err != nil {
+		return nil, err
+	}
+	orgUnits = append(orgUnits, orgTypes.OrganizationalUnit{Id: &parentId})
+
+	var allAccounts []orgTypes.Account
+
+	for _, ou := range orgUnits {
+		orgUnitAccounts, err := GetAccounts(client, *ou.Id)
+		if err != nil {
+			return nil, err
+		}
+		allAccounts = append(allAccounts, orgUnitAccounts...)
+	}
+
+	return allAccounts, nil
+}
+
 func GetGroups(client *identitystore.Client, identityStoreArn string) ([]identityTypes.Group, error) {
 	var maxResults int32 = 100
 	var payload []identityTypes.Group

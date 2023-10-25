@@ -167,6 +167,7 @@ func (j *Job) Run() {
 		err := j.handler(j.context)
 		if err != nil {
 			jobFailedCount.WithLabelValues(j.Name).Inc()
+			util.Logger.Error("Job failed", zap.String("jobName", j.Name), zap.Error(err))
 		} else {
 			jobSuccessfulCount.WithLabelValues(j.Name).Inc()
 		}

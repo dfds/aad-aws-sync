@@ -11,7 +11,6 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
-	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"go.dfds.cloud/aad-aws-sync/internal/aws"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
@@ -61,22 +60,11 @@ func Aws2K8sHandler(ctx context.Context) error {
 	}
 
 	// Get all OU's from parent organization ID
-	orgUnits, err := aws.GetAllOUsFromParent(context.TODO(), orgClient, conf.Aws.OrganizationsParentId)
+	allAccounts, err := aws.GetAllAccountsFromOuRecursive(ctx, orgClient, conf.Aws.OrganizationsParentId)
 	if err != nil {
 		return err
 	}
-
-	// Get all AWS accounts from all OU's
-	var allAccounts []types.Account
-
-	for _, ou := range orgUnits {
-		orgUnitAccounts, err := aws.GetAccounts(orgClient, *ou.Id)
-		if err != nil {
-			return err
-		}
-		allAccounts = append(allAccounts, orgUnitAccounts...)
-	}
-
+	
 	ssoRoleMappings := []aws.SsoRoleMapping{}
 
 	// Put AWS accounts in a useful format

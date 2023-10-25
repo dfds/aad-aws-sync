@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -129,7 +130,7 @@ func InitManageSso(cfg aws.Config, identityStoreArn string) (*ManageSso, error) 
 	orgClient := organizations.NewFromConfig(cfg)
 	identityStoreClient := identitystore.NewFromConfig(cfg)
 
-	awsAccounts, err := GetAccounts(orgClient, conf.Aws.OrganizationsParentId)
+	awsAccounts, err := GetAllAccountsFromOuRecursive(context.TODO(), orgClient, conf.Aws.RootOrganizationsParentId)
 	if err != nil {
 		return nil, err
 	}
