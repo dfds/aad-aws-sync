@@ -1,14 +1,17 @@
 package aws
 
 import (
+	"context"
 	"fmt"
+	"strings"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	identityStoreTypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	orgTypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
-	"strings"
+	"go.dfds.cloud/aad-aws-sync/internal/config"
 )
 
 type ManageSso struct { // TODO, make sure Account & Group are only allocated once
@@ -112,6 +115,11 @@ func RemoveAccountPrefix(prefix string, val string) string {
 }
 
 func InitManageSso(cfg aws.Config, identityStoreArn string) (*ManageSso, error) {
+	conf, err := config.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	payload := &ManageSso{
 		awsAccountsByAlias: map[string]*orgTypes.Account{},
 		awsAccountsById:    map[string]*orgTypes.Account{},
@@ -122,7 +130,7 @@ func InitManageSso(cfg aws.Config, identityStoreArn string) (*ManageSso, error) 
 	orgClient := organizations.NewFromConfig(cfg)
 	identityStoreClient := identitystore.NewFromConfig(cfg)
 
-	awsAccounts, err := GetAccounts(orgClient)
+	awsAccounts, err := GetAllAccountsFromOuRecursive(context.TODO(), orgClient, conf.Aws.RootOrganizationsParentId)
 	if err != nil {
 		return nil, err
 	}

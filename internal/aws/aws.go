@@ -6,6 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"sync"
+
 	awsHttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -20,10 +25,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
-	"io"
-	"net/http"
-	"strings"
-	"sync"
 )
 
 type SsoRoleMapping struct {
@@ -326,13 +327,14 @@ func (c *ScimClient) PatchRemoveMembersFromGroup(groupId string, members ...stri
 	return nil
 }
 
-func GetAccounts(client *organizations.Client) ([]orgTypes.Account, error) {
+func GetAccounts(client *organizations.Client, parentId string) ([]orgTypes.Account, error) {
 	var maxResults int32 = 20
 	var accounts []orgTypes.Account
-	resps := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{MaxResults: &maxResults})
+	resps := organizations.NewListAccountsForParentPaginator(client, &organizations.ListAccountsForParentInput{MaxResults: &maxResults, ParentId: &parentId})
 	for resps.HasMorePages() { // Due to the limit of only 20 accounts per query and wanting to avoid getting hit by a rate limit, this will take a while if you have a decent amount of AWS accounts
 		page, err := resps.NextPage(context.TODO())
 		if err != nil {
+			util.Logger.Sugar().Errorf("Error getting accounts: %v", err)
 			return accounts, err
 		}
 
@@ -340,6 +342,54 @@ func GetAccounts(client *organizations.Client) ([]orgTypes.Account, error) {
 	}
 
 	return accounts, nil
+}
+
+func GetAllOUsFromParent(ctx context.Context, client *organizations.Client, parentId string) ([]orgTypes.OrganizationalUnit, error) {
+	var maxResults int32 = 20
+	var ou []orgTypes.OrganizationalUnit
+	resp := organizations.NewListOrganizationalUnitsForParentPaginator(client, &organizations.ListOrganizationalUnitsForParentInput{
+		ParentId:   &parentId,
+		MaxResults: &maxResults,
+	})
+
+	for resp.HasMorePages() {
+		page, err := resp.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		ou = append(ou, page.OrganizationalUnits...)
+	}
+
+	for _, o := range ou {
+		recursiveResp, err := GetAllOUsFromParent(ctx, client, *o.Id)
+		if err != nil {
+			return nil, err
+		}
+		ou = append(ou, recursiveResp...)
+	}
+
+	return ou, nil
+}
+
+func GetAllAccountsFromOuRecursive(ctx context.Context, client *organizations.Client, parentId string) ([]orgTypes.Account, error) {
+	orgUnits, err := GetAllOUsFromParent(context.TODO(), client, parentId)
+	if err != nil {
+		return nil, err
+	}
+	orgUnits = append(orgUnits, orgTypes.OrganizationalUnit{Id: &parentId})
+
+	var allAccounts []orgTypes.Account
+
+	for _, ou := range orgUnits {
+		orgUnitAccounts, err := GetAccounts(client, *ou.Id)
+		if err != nil {
+			return nil, err
+		}
+		allAccounts = append(allAccounts, orgUnitAccounts...)
+	}
+
+	return allAccounts, nil
 }
 
 func GetGroups(client *identitystore.Client, identityStoreArn string) ([]identityTypes.Group, error) {

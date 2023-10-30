@@ -59,15 +59,16 @@ func Aws2K8sHandler(ctx context.Context) error {
 		return err
 	}
 
-	// Get all AWS accounts
-	accounts, err := aws.GetAccounts(orgClient)
+	// Get all OU's from parent organization ID
+	allAccounts, err := aws.GetAllAccountsFromOuRecursive(ctx, orgClient, conf.Aws.OrganizationsParentId)
 	if err != nil {
 		return err
 	}
+	
 	ssoRoleMappings := []aws.SsoRoleMapping{}
 
 	// Put AWS accounts in a useful format
-	for _, acc := range accounts {
+	for _, acc := range allAccounts {
 		ssoRoleMapping := aws.SsoRoleMapping{
 			AccountAlias: *acc.Name,
 			AccountId:    *acc.Id,
