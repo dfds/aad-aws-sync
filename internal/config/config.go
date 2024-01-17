@@ -39,6 +39,10 @@ type Config struct {
 		ClientId     string `json:"clientId"`
 		ClientSecret string `json:"clientSecret"`
 	} `json:"capSvc"`
+	Exchange struct {
+		ManagedBy string `json:"managedBy"`
+		BaseUrl   string `json:"baseUrl"`
+	}
 	Log struct {
 		Level string `json:"level"`
 		Debug bool   `json:"debug"`

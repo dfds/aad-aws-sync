@@ -1,6 +1,7 @@
 package ssu_exchange
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,8 +14,6 @@ import (
 	"k8s.io/utils/env"
 )
 
-// TODO look into using: https://github.com/microsoftgraph/msgraph-sdk-go
-
 type Client struct {
 	httpClient  *http.Client
 	tokenClient *util.TokenClient
@@ -26,6 +25,7 @@ type Config struct {
 	ClientId     string `json:"clientId"`
 	ClientSecret string `json:"clientSecret"`
 	BaseUrl      string `json:"baseUrl"`
+	ManagedBy    string `json:"managedBy"`
 }
 
 func (c *Client) GetAliases(ctx context.Context) ([]GetAliasesResponse, error) {
@@ -54,6 +54,82 @@ func (c *Client) GetAliases(ctx context.Context) ([]GetAliasesResponse, error) {
 	}
 
 	return *payload, nil
+}
+
+func (c *Client) CreateAlias(ctx context.Context, alias string) error {
+	serialised, err := json.Marshal(struct {
+		Alias     string `json:"alias"`
+		ManagedBy string `json:"managedBy"`
+	}{
+		Alias:     alias,
+		ManagedBy: c.config.ManagedBy,
+	})
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/CreateDistributionGroup", c.config.BaseUrl)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(serialised))
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	rf := NewRequestFuncs()
+	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		}
+		return nil
+	}
+	err = DoRequestWithoutDeserialise(c, req, rf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) RemoveAlias(ctx context.Context, alias string) error {
+	serialised, err := json.Marshal(struct {
+		Alias string `json:"alias"`
+	}{
+		Alias: alias,
+	})
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/DeleteDistributionGroup", c.config.BaseUrl)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(serialised))
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	rf := NewRequestFuncs()
+	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		}
+		return nil
+	}
+	err = DoRequestWithoutDeserialise(c, req, rf)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) RefreshAuth() error {
@@ -136,6 +212,32 @@ func DoRequest[T any](client *Client, req *http.Request, rf *RequestFuncs) (*T, 
 	}
 
 	return resp, nil
+}
+
+func DoRequestWithoutDeserialise(client *Client, req *http.Request, rf *RequestFuncs) error {
+	err := rf.PreResponse(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	err = rf.PostResponse(req, resp)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	_, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func DoRequestWithResp[T any](client *Client, req *http.Request, rf *RequestFuncs) (*T, *http.Response, error) {
