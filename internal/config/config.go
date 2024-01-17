@@ -47,11 +47,12 @@ type Config struct {
 		Enabled bool `json:"enable"`
 	}
 	Scheduler struct {
-		Frequency          string `json:"scheduleFrequency" default:"30m"`
-		EnableCapsvc2Azure bool   `json:"enableCapsvc2Azure"`
-		EnableAzure2Aws    bool   `json:"enableAzure2Aws"`
-		EnableAwsMapping   bool   `json:"enableAwsMapping"`
-		EnableAws2K8s      bool   `json:"enableAws2K8S"`
+		Frequency                  string `json:"scheduleFrequency" default:"30m"`
+		EnableCapsvc2Azure         bool   `json:"enableCapsvc2Azure"`
+		EnableAzure2Aws            bool   `json:"enableAzure2Aws"`
+		EnableAwsMapping           bool   `json:"enableAwsMapping"`
+		EnableAws2K8s              bool   `json:"enableAws2K8S"`
+		EnableCapabilityEmailAlias bool   `json:"enableCapabilityEmailAlias"`
 	}
 }
 
