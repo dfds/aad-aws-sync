@@ -23,13 +23,13 @@ spec:
         env:
         - name: AAS_SCHEDULER_FREQUENCY
           value: 5m
-        - name: AAS_SCHEDULER_JOB_CAPSVC2AZURE_ENABLE
+        - name: AAS_SCHEDULER_JOB_CAPSVC2AAD_ENABLE
           value: "true"
-        - name: AAS_SCHEDULER_JOB_CAPSVC2AZURE_INTERVAL
+        - name: AAS_SCHEDULER_JOB_CAPSVC2AAD_INTERVAL
           value: "5m"
-        - name: AAS_SCHEDULER_JOB_AZURE2AWS_ENABLE
+        - name: AAS_SCHEDULER_JOB_AAD2AWS_ENABLE
           value: "true"
-        - name: AAS_SCHEDULER_JOB_AZURE2AWS_INTERVAL
+        - name: AAS_SCHEDULER_JOB_AAD2AWS_INTERVAL
           value: "5m"
         - name: AAS_SCHEDULER_JOB_AWSMAPPING_ENABLE
           value: "true"
