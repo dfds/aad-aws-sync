@@ -13,7 +13,7 @@ import (
 )
 
 const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
-const CapabilityServiceToAzureAdName = "capSvcToAad"
+const CapabilityServiceToAzureAdName = "capSvc2Aad"
 
 func Capsvc2AadHandler(ctx context.Context) error {
 	conf, err := config.LoadConfig()

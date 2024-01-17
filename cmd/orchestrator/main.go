@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"go.dfds.cloud/aad-aws-sync/internal/event"
+	"go.dfds.cloud/aad-aws-sync/internal/handler"
 	"go.uber.org/zap"
 	"log"
 	"net/http"
@@ -17,7 +18,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	_ "go.dfds.cloud/aad-aws-sync/cmd/orchestrator/docs"
-	"go.dfds.cloud/aad-aws-sync/internal/orchestrator"
+	"go.dfds.cloud/orchestrator"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-co-op/gocron"
@@ -165,24 +166,16 @@ func main() {
 
 	backgroundJobWg := &sync.WaitGroup{}
 	orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg)
-	orc.Init(conf)
+	orc.Init(util.Logger)
 	// Orchestrator goroutine; Handles scheduling jobs
-	go func() {
-		util.Logger.Info("Initialising Orchestrator")
-		for _, job := range orc.Jobs {
-			_, err := s.Every(conf.Scheduler.Frequency).DoWithJobDetails(func(j *orchestrator.Job, c gocron.Job) {
-				// If conf flag is set to not schedule job, do not do it!
-				if j.ScheduleEnabled {
-					j.Run()
-				}
-			}, job)
+	configPrefix := "AAS_SCHEDULER_JOB"
+	orc.AddJob(configPrefix, orchestrator.NewJob("capSvc2Aad", handler.Capsvc2AadHandler), &orchestrator.Schedule{})
+	orc.AddJob(configPrefix, orchestrator.NewJob("aad2Aws", handler.Azure2AwsHandler), &orchestrator.Schedule{})
+	orc.AddJob(configPrefix, orchestrator.NewJob("awsMapping", handler.AwsMappingHandler), &orchestrator.Schedule{})
+	orc.AddJob(configPrefix, orchestrator.NewJob("aws2K8s", handler.Aws2K8sHandler), &orchestrator.Schedule{})
 
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-		s.StartBlocking()
-	}()
+	// Orchestrator goroutine; Handles scheduling jobs
+	orc.Run()
 
 	// Event handling
 	if conf.EventHandling.Enabled {
