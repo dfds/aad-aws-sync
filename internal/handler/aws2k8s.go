@@ -21,7 +21,7 @@ import (
 )
 
 const TIME_FORMAT = "2006-01-02 15:04:05.999999999 -0700 MST"
-const AwsToKubernetesName = "awsToK8s"
+const AwsToKubernetesName = "aws2K8s"
 
 func Aws2K8sHandler(ctx context.Context) error {
 	conf, err := config.LoadConfig()
@@ -64,7 +64,7 @@ func Aws2K8sHandler(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	
+
 	ssoRoleMappings := []aws.SsoRoleMapping{}
 
 	// Put AWS accounts in a useful format

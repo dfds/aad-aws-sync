@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"go.dfds.cloud/aad-aws-sync/internal/orchestrator"
+	"go.dfds.cloud/orchestrator"
 )
 
 func AddOrchestrator(orc *orchestrator.Orchestrator) gin.HandlerFunc {

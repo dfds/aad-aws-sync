@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const AzureAdToAwsName = "aadToAws"
+const AzureAdToAwsName = "aad2Aws"
 
 func Azure2AwsHandler(ctx context.Context) error {
 	conf, err := config.LoadConfig()
