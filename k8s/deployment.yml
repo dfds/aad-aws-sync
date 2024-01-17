@@ -17,7 +17,7 @@ spec:
     spec:
       serviceAccountName: aad-aws-sync
       containers:
-      - image: dfdsdk/aadawssync:v0.0.15
+      - image: dfdsdk/aadawssync:v0.0.16
         name: aad-aws-sync
         imagePullPolicy: Always
         env:
