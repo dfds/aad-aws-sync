@@ -39,6 +39,10 @@ type Config struct {
 		ClientId     string `json:"clientId"`
 		ClientSecret string `json:"clientSecret"`
 	} `json:"capSvc"`
+	Exchange struct {
+		ManagedBy string `json:"managedBy"`
+		BaseUrl   string `json:"baseUrl"`
+	}
 	Log struct {
 		Level string `json:"level"`
 		Debug bool   `json:"debug"`
@@ -47,11 +51,12 @@ type Config struct {
 		Enabled bool `json:"enable"`
 	}
 	Scheduler struct {
-		Frequency          string `json:"scheduleFrequency" default:"30m"`
-		EnableCapsvc2Azure bool   `json:"enableCapsvc2Azure"`
-		EnableAzure2Aws    bool   `json:"enableAzure2Aws"`
-		EnableAwsMapping   bool   `json:"enableAwsMapping"`
-		EnableAws2K8s      bool   `json:"enableAws2K8S"`
+		Frequency                  string `json:"scheduleFrequency" default:"30m"`
+		EnableCapsvc2Azure         bool   `json:"enableCapsvc2Azure"`
+		EnableAzure2Aws            bool   `json:"enableAzure2Aws"`
+		EnableAwsMapping           bool   `json:"enableAwsMapping"`
+		EnableAws2K8s              bool   `json:"enableAws2K8S"`
+		EnableCapabilityEmailAlias bool   `json:"enableCapabilityEmailAlias"`
 	}
 }
 
