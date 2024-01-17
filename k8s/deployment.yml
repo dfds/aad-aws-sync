@@ -39,6 +39,10 @@ spec:
           value: "true"
         - name: AAS_SCHEDULER_JOB_AWS2K8S_INTERVAL
           value: "5m"
+        - name: AAS_SCHEDULER_JOB_CAPABILITYEMAILALIAS_ENABLE
+          value: "true"
+        - name: AAS_SCHEDULER_JOB_CAPABILITYEMAILALIAS_INTERVAL
+          value: "10m"
         - name: AAS_LOG_LEVEL
           value: info
         - name: AAS_AWS_SSOREGION
