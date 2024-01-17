@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	"go.dfds.cloud/aad-aws-sync/internal/orchestrator"
+	"go.dfds.cloud/orchestrator"
 	"sync"
 	"testing"
 )

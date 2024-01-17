@@ -16,36 +16,45 @@ import (
 
 var logger = zap.NewNop()
 
-var currentJobsGauge prometheus.Gauge = promauto.NewGauge(prometheus.GaugeOpts{
-	Name:      "jobs_running",
-	Help:      "Current jobs that are running",
-	Namespace: "aad_finout_sync",
-})
-
-var currentJobStatus *prometheus.GaugeVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
-	Name:      "job_is_running",
-	Help:      "Is {job_name} running. 1 = in progress, 0 = not running",
-	Namespace: "aad_finout_sync",
-}, []string{"name"})
-
-var jobFailedCount *prometheus.GaugeVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
-	Name:      "job_failed_count",
-	Help:      "How many times has {job_name} failed.",
-	Namespace: "aad_finout_sync",
-}, []string{"name"})
-
-var jobSuccessfulCount *prometheus.GaugeVec = promauto.NewGaugeVec(prometheus.GaugeOpts{
-	Name:      "job_success_count",
-	Help:      "How many times has {job_name} successfully completed.",
-	Namespace: "aad_finout_sync",
-}, []string{"name"})
-
 type Orchestrator struct {
 	status     map[string]*SyncStatus
 	scheduling map[string]*Schedule
 	Jobs       map[string]*Job
 	ctx        context.Context
 	wg         *sync.WaitGroup
+	metrics    *Metrics
+}
+
+type Metrics struct {
+	currentJobsGauge   prometheus.Gauge
+	currentJobStatus   *prometheus.GaugeVec
+	jobFailedCount     *prometheus.GaugeVec
+	jobSuccessfulCount *prometheus.GaugeVec
+}
+
+func setupMetrics(ns string) *Metrics {
+	return &Metrics{
+		currentJobsGauge: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "jobs_running",
+			Help:      "Current jobs that are running",
+			Namespace: ns,
+		}),
+		currentJobStatus: promauto.NewGaugeVec(prometheus.GaugeOpts{
+			Name:      "job_is_running",
+			Help:      "Is {job_name} running. 1 = in progress, 0 = not running",
+			Namespace: ns,
+		}, []string{"name"}),
+		jobFailedCount: promauto.NewGaugeVec(prometheus.GaugeOpts{
+			Name:      "job_failed_count",
+			Help:      "How many times has {job_name} failed.",
+			Namespace: ns,
+		}, []string{"name"}),
+		jobSuccessfulCount: promauto.NewGaugeVec(prometheus.GaugeOpts{
+			Name:      "job_success_count",
+			Help:      "How many times has {job_name} successfully completed.",
+			Namespace: ns,
+		}, []string{"name"}),
+	}
 }
 
 type SyncStatus struct {
@@ -102,13 +111,14 @@ func (s *Schedule) TimeToRun() bool {
 	}
 }
 
-func NewOrchestrator(ctx context.Context, wg *sync.WaitGroup) *Orchestrator {
+func NewOrchestrator(ctx context.Context, wg *sync.WaitGroup, metricsNamespace string) *Orchestrator {
 	return &Orchestrator{
 		Jobs:       map[string]*Job{},
 		scheduling: map[string]*Schedule{},
 		status:     map[string]*SyncStatus{},
 		ctx:        ctx,
 		wg:         wg,
+		metrics:    setupMetrics(metricsNamespace),
 	}
 }
 
@@ -134,6 +144,7 @@ func (o *Orchestrator) AddJob(configPrefix string, job *Job, schedule *Schedule)
 	job.wg = o.wg
 	job.Status = o.status[job.Name]
 	job.Schedule = schedule
+	job.metrics = o.metrics
 
 	schedule.name = job.Name
 	schedule.LoadConfig(configPrefix)
@@ -167,6 +178,7 @@ type Job struct {
 	handler  func(ctx context.Context) error
 	wg       *sync.WaitGroup
 	Schedule *Schedule
+	metrics  *Metrics
 }
 
 func NewJob(name string, handler func(ctx context.Context) error) *Job {
@@ -184,21 +196,21 @@ func (j *Job) Run() {
 	j.Schedule.lastExecuted = time.Now()
 	j.Status.SetStatus(true)
 	j.wg.Add(1)
-	currentJobsGauge.Inc()
-	currentJobStatus.WithLabelValues(j.Name).Set(1)
+	j.metrics.currentJobsGauge.Inc()
+	j.metrics.currentJobStatus.WithLabelValues(j.Name).Set(1)
 	logger.Warn("Job started", zap.String("jobName", j.Name))
 
 	go func() {
 		defer j.wg.Done()
 		err := j.handler(j.context)
 		if err != nil {
-			jobFailedCount.WithLabelValues(j.Name).Inc()
+			j.metrics.jobFailedCount.WithLabelValues(j.Name).Inc()
 			logger.Error("Job failed", zap.String("jobName", j.Name), zap.Error(err))
 		} else {
-			jobSuccessfulCount.WithLabelValues(j.Name).Inc()
+			j.metrics.jobSuccessfulCount.WithLabelValues(j.Name).Inc()
 		}
-		currentJobsGauge.Dec()
-		currentJobStatus.WithLabelValues(j.Name).Set(0)
+		j.metrics.currentJobsGauge.Dec()
+		j.metrics.currentJobStatus.WithLabelValues(j.Name).Set(0)
 		j.Status.SetStatus(false)
 		logger.Warn("Job ended", zap.String("jobName", j.Name))
 

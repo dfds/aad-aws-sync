@@ -165,7 +165,7 @@ func main() {
 	s.SingletonModeAll()
 
 	backgroundJobWg := &sync.WaitGroup{}
-	orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg)
+	orc := orchestrator.NewOrchestrator(ctx, backgroundJobWg, "aad_aws_sync")
 	orc.Init(util.Logger)
 	// Orchestrator goroutine; Handles scheduling jobs
 	configPrefix := "AAS_SCHEDULER_JOB"

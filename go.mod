@@ -22,7 +22,7 @@ require (
 	github.com/swaggo/files v1.0.0
 	github.com/swaggo/gin-swagger v1.5.3
 	github.com/swaggo/swag v1.8.1
-	go.dfds.cloud/orchestrator v0.1.6
+	go.dfds.cloud/orchestrator v0.1.7
 	go.dfds.cloud/utils v0.1.5
 	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.3.0

@@ -275,6 +275,8 @@ github.com/yuin/goldmark v1.4.0/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.dfds.cloud/orchestrator v0.1.6 h1:QooI9QKizDf64mUukvc1omZcou7E7dXvgK3RpqTaQs8=
 go.dfds.cloud/orchestrator v0.1.6/go.mod h1:RSojgRj3AGpPhgeMbxkGkZbvHt0JVfB7HgWiWx2t3QM=
+go.dfds.cloud/orchestrator v0.1.7 h1:eDObYBMFCR0U+CMpPGiQkvj42oFT2qWKLPmFoVJ0TUg=
+go.dfds.cloud/orchestrator v0.1.7/go.mod h1:RSojgRj3AGpPhgeMbxkGkZbvHt0JVfB7HgWiWx2t3QM=
 go.dfds.cloud/utils v0.1.5 h1:4PrSQN/qALPkKac4TmiCepZd19qx/Vut/WZTF8+i2jk=
 go.dfds.cloud/utils v0.1.5/go.mod h1:DG/0Ot85nI1kgV5LCrcRdPP7mZO1vmFThrXNXZJ8wlU=
 go.uber.org/goleak v1.2.0 h1:xqgm/S+aQvhWFTtR0XK3Jvg7z8kGV8P4X14IzwN3Eqk=

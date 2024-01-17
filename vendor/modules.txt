@@ -407,7 +407,7 @@ github.com/valyala/fasthttp/stackless
 # github.com/valyala/tcplisten v1.0.0
 ## explicit; go 1.12
 github.com/valyala/tcplisten
-# go.dfds.cloud/orchestrator v0.1.6
+# go.dfds.cloud/orchestrator v0.1.7
 ## explicit; go 1.18
 go.dfds.cloud/orchestrator
 # go.dfds.cloud/utils v0.1.5
