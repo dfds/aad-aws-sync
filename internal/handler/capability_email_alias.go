@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -63,6 +64,10 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 	var emailAliasesMapped map[string]ssu_exchange.GetAliasesResponse = make(map[string]ssu_exchange.GetAliasesResponse)
 	if err != nil {
 		return err
+	}
+
+	if len(aliases) == 0 {
+		return errors.New("0 aliases returned from Exchange Online. This is not expected behaviour")
 	}
 
 	metricTotalEmailAliasCount.Set(float64(len(aliases)))
