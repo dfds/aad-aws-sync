@@ -43,6 +43,11 @@ type Config struct {
 		ManagedBy string `json:"managedBy"`
 		BaseUrl   string `json:"baseUrl"`
 	}
+	Handler struct {
+		AssignGroups2AzureEnterpriseApps struct {
+			DataFilePath string `json:"dataFilePath"`
+		} `json:"assignGroups2AzureEnterpriseApps"`
+	} `json:"handler"`
 	Log struct {
 		Level string `json:"level"`
 		Debug bool   `json:"debug"`
