@@ -16,10 +16,21 @@ spec:
         app: aad-aws-sync
     spec:
       serviceAccountName: aad-aws-sync
+      volumes:
+        - name: enterpriseapp-mappings
+          secret:
+            secretName: "aad-aws-sync-enterpriseapp-mappings"
+            items:
+              - key: "json"
+                path: "enterpriseapp-mappings.json"
       containers:
-      - image: dfdsdk/aadawssync:v0.0.20
+      - image: dfdsdk/aadawssync:v0.0.21
         name: aad-aws-sync
         imagePullPolicy: Always
+        volumeMounts:
+          - mountPath: /app/data/enterpriseapp-mappings.json
+            subPath: enterpriseapp-mappings.json
+            name: enterpriseapp-mappings
         env:
         - name: AAS_SCHEDULER_FREQUENCY
           value: 5m
@@ -51,6 +62,12 @@ spec:
           value: release
         - name: AAS_EVENTHANDLING_ENABLED
           value: "true"
+        - name: AAS_SCHEDULER_JOB_ASSIGNGROUPS2AZUREENTERPRISEAPPS_ENABLE
+          value: "true"
+        - name: AAS_SCHEDULER_JOB_ASSIGNGROUPS2AZUREENTERPRISEAPPS_INTERVAL
+          value: "5m"
+        - name: AAS_HANDLER_ASSIGNGROUPS2AZUREENTERPRISEAPPS_DATAFILEPATH
+          value: "/app/data/enterpriseapp-mappings.json"
         envFrom:
           - secretRef:
               name: aad-aws-sync
