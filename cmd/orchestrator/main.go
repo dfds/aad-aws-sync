@@ -174,6 +174,7 @@ func main() {
 	orc.AddJob(configPrefix, orchestrator.NewJob("awsMapping", handler.AwsMappingHandler), &orchestrator.Schedule{})
 	orc.AddJob(configPrefix, orchestrator.NewJob("aws2K8s", handler.Aws2K8sHandler), &orchestrator.Schedule{})
 	orc.AddJob(configPrefix, orchestrator.NewJob("capabilityEmailAlias", handler.CapabilityEmailAliasHandler), &orchestrator.Schedule{})
+	orc.AddJob(configPrefix, orchestrator.NewJob("assignGroups2AzureEnterpriseApps", handler.AssignGroupsToAzureEnterpriseAppsHandler), &orchestrator.Schedule{})
 
 	// Orchestrator goroutine; Handles scheduling jobs
 	orc.Run()
