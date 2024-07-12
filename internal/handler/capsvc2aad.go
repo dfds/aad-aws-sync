@@ -58,10 +58,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 	}
 
 	for _, capability := range capabilities {
-		_, err := capability.GetContext()
-		if err == nil {
-			capabilitiesByRootId[capability.RootID] = capability
-		}
+		capabilitiesByRootId[capability.RootID] = capability
 	}
 
 	for _, member := range aUnitMembers.Value {
