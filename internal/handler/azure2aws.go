@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
+	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
@@ -22,6 +23,27 @@ func Azure2AwsHandler(ctx context.Context) error {
 		ClientId:     conf.Azure.ClientId,
 		ClientSecret: conf.Azure.ClientSecret,
 	})
+
+	capabilitiesByRootId := make(map[string]*capsvc.GetCapabilitiesResponseContextCapability)
+	ssuClient := capsvc.NewCapSvcClient(capsvc.Config{
+		Host:         conf.CapSvc.Host,
+		TenantId:     conf.Azure.TenantId,
+		ClientId:     conf.CapSvc.ClientId,
+		ClientSecret: conf.CapSvc.ClientSecret,
+		Scope:        conf.CapSvc.TokenScope,
+	})
+
+	capabilities, err := ssuClient.GetCapabilities()
+	if err != nil {
+		return err
+	}
+
+	for _, capability := range capabilities {
+		_, err := capability.GetContext()
+		if err == nil {
+			capabilitiesByRootId[fmt.Sprintf("%s %s", azure.AZURE_CAPABILITY_GROUP_PREFIX, capability.RootID)] = capability
+		}
+	}
 
 	appRoles, err := azClient.GetApplicationRoles(conf.Azure.ApplicationId)
 	if err != nil {
@@ -49,6 +71,11 @@ func Azure2AwsHandler(ctx context.Context) error {
 			util.Logger.Info("Job cancelled", zap.String("jobName", AzureAdToAwsName))
 			return nil
 		default:
+		}
+
+		// Skip if group doesn't have a context
+		if _, ok := capabilitiesByRootId[group.DisplayName]; !ok {
+			continue
 		}
 
 		util.Logger.Debug(group.DisplayName, zap.String("jobName", AzureAdToAwsName))
