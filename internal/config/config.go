@@ -40,8 +40,10 @@ type Config struct {
 		ClientSecret string `json:"clientSecret"`
 	} `json:"capSvc"`
 	Exchange struct {
-		ManagedBy string `json:"managedBy"`
-		BaseUrl   string `json:"baseUrl"`
+		ManagedBy   string `json:"managedBy"`
+		BaseUrl     string `json:"baseUrl"`
+		EmailSuffix string `json:"emailSuffix"`
+		CcEmail     string `json:"ccEmail"`
 	}
 	Handler struct {
 		AssignGroups2AzureEnterpriseApps struct {

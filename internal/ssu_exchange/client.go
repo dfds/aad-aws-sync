@@ -56,13 +56,17 @@ func (c *Client) GetAliases(ctx context.Context) ([]GetAliasesResponse, error) {
 	return *payload, nil
 }
 
-func (c *Client) CreateAlias(ctx context.Context, alias string) error {
+func (c *Client) CreateAlias(ctx context.Context, alias string, displayName string, members []string) error {
 	serialised, err := json.Marshal(struct {
-		Alias     string `json:"alias"`
-		ManagedBy string `json:"managedBy"`
+		Alias       string   `json:"alias"`
+		ManagedBy   string   `json:"managedBy"`
+		DisplayName string   `json:"displayName"`
+		Members     []string `json:"members,omitempty"`
 	}{
-		Alias:     alias,
-		ManagedBy: c.config.ManagedBy,
+		Alias:       alias,
+		ManagedBy:   c.config.ManagedBy,
+		DisplayName: displayName,
+		Members:     members,
 	})
 	if err != nil {
 		return err
@@ -106,6 +110,84 @@ func (c *Client) RemoveAlias(ctx context.Context, alias string) error {
 	}
 
 	url := fmt.Sprintf("%s/DeleteDistributionGroup", c.config.BaseUrl)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(serialised))
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	rf := NewRequestFuncs()
+	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		}
+		return nil
+	}
+	err = DoRequestWithoutDeserialise(c, req, rf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) AddDistributionGroupMember(ctx context.Context, displayName string, memberEmail string) error {
+	serialised, err := json.Marshal(struct {
+		DisplayName string `json:"displayName"`
+		Member      string `json:"member"`
+	}{
+		DisplayName: displayName,
+		Member:      memberEmail,
+	})
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/AddDistributionGroupMember", c.config.BaseUrl)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(serialised))
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return err
+	}
+
+	rf := NewRequestFuncs()
+	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		}
+		return nil
+	}
+	err = DoRequestWithoutDeserialise(c, req, rf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Client) RemoveDistributionGroupMember(ctx context.Context, displayName string, memberEmail string) error {
+	serialised, err := json.Marshal(struct {
+		DisplayName string `json:"displayName"`
+		Member      string `json:"member"`
+	}{
+		DisplayName: displayName,
+		Member:      memberEmail,
+	})
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/RemoveDistributionGroupMember", c.config.BaseUrl)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(serialised))
 	if err != nil {
@@ -324,7 +406,7 @@ func NewSsuExchangeClient(conf Config) *Client {
 	return payload
 }
 
-const AZURE_CAPABILITY_GROUP_PREFIX = "CI_SSU_Exchange -"
+const AZURE_CAPABILITY_GROUP_PREFIX = "CI_SSU_Ex -"
 
 func GenerateExchangeDistributionGroupDisplayName(name string) string {
 	return fmt.Sprintf("%s %s", AZURE_CAPABILITY_GROUP_PREFIX, name)

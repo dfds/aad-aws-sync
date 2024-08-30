@@ -21,14 +21,16 @@ func (g *GetCapabilitiesResponseContextCapability) GetContext() (*GetCapabilitie
 }
 
 type GetCapabilitiesResponseContextCapability struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	RootID      string `json:"rootId"`
-	Description string `json:"description"`
-	Members     []struct {
-		Email string `json:"email"`
-	} `json:"members"`
-	Contexts []*GetCapabilitiesResponseContext `json:"contexts,omitempty"`
+	ID          string                                           `json:"id"`
+	Name        string                                           `json:"name"`
+	RootID      string                                           `json:"rootId"`
+	Description string                                           `json:"description"`
+	Members     []GetCapabilitiesResponseContextCapabilityMember `json:"members"`
+	Contexts    []*GetCapabilitiesResponseContext                `json:"contexts,omitempty"`
+}
+
+type GetCapabilitiesResponseContextCapabilityMember struct {
+	Email string `json:"email"`
 }
 
 func (g *GetCapabilitiesResponseContextCapability) HasMember(email string) bool {
