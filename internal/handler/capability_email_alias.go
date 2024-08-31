@@ -90,12 +90,21 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 		Scope:        conf.CapSvc.TokenScope,
 	})
 
-	ssuClient := ssu_exchange.NewSsuExchangeClient(ssu_exchange.Config{
+	//ssuClient := ssu_exchange.NewSsuExchangeClientPowershellWrapper(ssu_exchange.Config{
+	//	TenantId:     conf.Azure.TenantId,
+	//	ClientId:     conf.Azure.ClientId,
+	//	ClientSecret: conf.Azure.ClientSecret,
+	//	BaseUrl:      conf.Exchange.BaseUrl,
+	//	ManagedBy:    conf.Exchange.ManagedBy,
+	//})
+
+	ssuClient := ssu_exchange.NewSsuExchangeClientO365UnofficialApi(ssu_exchange.Config{
 		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		ClientId:     conf.Exchange.ClientId,
+		ClientSecret: conf.Exchange.ClientSecret,
 		BaseUrl:      conf.Exchange.BaseUrl,
 		ManagedBy:    conf.Exchange.ManagedBy,
+		EmailSuffix:  conf.Exchange.EmailSuffix,
 	})
 
 	azClient := azure.NewAzureClient(azure.Config{
@@ -183,14 +192,14 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 		exists := handler.AliasDisplayNameExists(displayName)
 		if exists {
 			// Reconcile group members
-			testCapa := capa
-			testCapa.Members = append(testCapa.Members, capsvc.GetCapabilitiesResponseContextCapabilityMember{Email: conf.Exchange.CcEmail})
+			capaWithCcMembers := capa
+			capaWithCcMembers.Members = append(capaWithCcMembers.Members, capsvc.GetCapabilitiesResponseContextCapabilityMember{Email: conf.Exchange.CcEmail})
 			dstGroup, exists := handlerState.DistributionsGroupsInAzureByDisplayName[displayName]
 			if !exists {
 				return errors.New("alias exists in Exchange Online, but equivalent group in Azure doesn't, something is off")
 			}
 
-			for _, capabilityMember := range testCapa.Members {
+			for _, capabilityMember := range capaWithCcMembers.Members {
 				if !dstGroup.HasMember(capabilityMember.Email) {
 					logger.Info(fmt.Sprintf("%s missing from exchange alias %s, adding", capabilityMember.Email, capa.RootID))
 					err = ssuClient.AddDistributionGroupMember(ctx, fmt.Sprintf("%s %s", capa.RootID, MainAlias.DisplayName), capabilityMember.Email)
@@ -201,7 +210,7 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 			}
 
 			for _, azGrpMember := range dstGroup.Members {
-				if !testCapa.HasMember(azGrpMember.UserPrincipalName) {
+				if !capaWithCcMembers.HasMember(azGrpMember.UserPrincipalName) {
 					logger.Info(fmt.Sprintf("exchange alias %s contains stale member %s, removing", capa.RootID, azGrpMember.UserPrincipalName))
 					err = ssuClient.RemoveDistributionGroupMember(ctx, fmt.Sprintf("%s %s", capa.RootID, MainAlias.DisplayName), azGrpMember.UserPrincipalName)
 					if err != nil {
@@ -231,6 +240,8 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 				members := []string{}
 				if subAlias.addCapabilityMembers {
 					members = append(members, fmt.Sprintf("%s%s", capa.RootID, conf.Exchange.EmailSuffix))
+				} else {
+					members = append(members, conf.Exchange.CcEmail)
 				}
 				err = ssuClient.CreateAlias(ctx, fmt.Sprintf("%s.%s", subAlias.EmailAliasValue, capa.RootID), fmt.Sprintf("%s %s", capa.RootID, subAlias.DisplayName), members)
 				if err != nil {
@@ -249,7 +260,7 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 
 type capabilityEmailAliasHandler struct {
 	CapSvcClient         *capsvc.Client
-	ExchangeOnlineClient *ssu_exchange.Client
+	ExchangeOnlineClient ssu_exchange.IClient
 	Cache                *capabilityEmailAliasHandlerCache
 	State                *state
 }
