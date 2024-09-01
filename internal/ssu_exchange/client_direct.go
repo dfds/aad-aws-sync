@@ -9,6 +9,7 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"io"
 	"k8s.io/utils/env"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,43 +26,69 @@ func (c *ClientO365UnofficialApi) o365BaseUrl() string {
 }
 
 func (c *ClientO365UnofficialApi) GetAliases(ctx context.Context) ([]GetAliasesResponse, error) {
-	reqPayload := direct.O365BaseRequest{
-		CmdletInput: direct.RequestCmdletInput{
-			CmdletName: "Get-DistributionGroup",
-			Parameters: direct.CmdletInputParameters{
-				Filter: "Name -like 'CI_SSU_Ex*'",
+	var skipToken *string = nil
+	var data []GetAliasesResponse
+	for {
+		reqPayload := direct.O365BaseRequest{
+			CmdletInput: direct.RequestCmdletInput{
+				CmdletName: "Get-DistributionGroup",
+				Parameters: direct.CmdletInputParameters{
+					Filter:     "Name -like 'CI_SSU_Ex*'",
+					ResultSize: "unlimited",
+				},
 			},
-		},
-	}
-
-	serialisedReqPayload, err := json.Marshal(reqPayload)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.o365BaseUrl(), bytes.NewBuffer(serialisedReqPayload))
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.prepareJsonRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	rf := NewRequestFuncs()
-	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
 		}
-		return nil
-	}
-	payload, err := DoRequest[direct.O365ResponseWrapper[GetAliasesResponse]](c, req, rf)
-	if err != nil {
-		return nil, err
+
+		serialisedReqPayload, err := json.Marshal(reqPayload)
+		if err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", c.o365BaseUrl(), bytes.NewBuffer(serialisedReqPayload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("X-AnchorMailbox", "UPN:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@dfds.onmicrosoft.com")
+
+		if skipToken != nil {
+			req.URL, err = url.Parse(*skipToken)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		err = c.prepareJsonRequest(req)
+		if err != nil {
+			return nil, err
+		}
+
+		rf := NewRequestFuncs()
+		rf.PostResponse = func(req *http.Request, resp *http.Response) error {
+			if resp.StatusCode != 200 {
+				rawData, err := io.ReadAll(resp.Body)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Println(string(rawData))
+				return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+			}
+			return nil
+		}
+		payload, err := DoRequest[direct.O365ResponseWrapper[GetAliasesResponse]](c, req, rf)
+		if err != nil {
+			return nil, err
+		}
+
+		data = append(data, payload.Value...)
+
+		if payload.OdataNextLink != nil {
+			skipToken = payload.OdataNextLink
+		} else {
+			break
+		}
 	}
 
-	return payload.Value, nil
+	return data, nil
 }
 
 func (c *ClientO365UnofficialApi) CreateAlias(ctx context.Context, alias string, displayName string, members []string) error {

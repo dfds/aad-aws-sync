@@ -160,6 +160,7 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 		return err
 	}
 
+	// Do it concurrently, make sure to watch for rate limits
 	for _, grp := range azureGroupsResp.Value {
 		group := &azure.Group{
 			DisplayName: grp.DisplayName,

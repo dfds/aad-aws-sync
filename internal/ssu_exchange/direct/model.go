@@ -23,10 +23,12 @@ type CmdletInputParameters struct {
 	ManagedBy                          string   `json:"ManagedBy,omitempty"`
 	Identity                           string   `json:"Identity,omitempty"`
 	Confirm                            bool     `json:"Confirm,omitempty"`
+	ResultSize                         string   `json:"ResultSize,omitempty"`
 }
 
 type O365ResponseWrapper[T any] struct {
 	OdataContext              string        `json:"@odata.context"`
+	OdataNextLink             *string       `json:"@odata.nextLink,omitempty"`
 	AdminapiWarningsOdataType string        `json:"adminapi.warnings@odata.type"`
 	AdminapiWarnings          []interface{} `json:"@adminapi.warnings"`
 	Value                     []T           `json:"value"`
