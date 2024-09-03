@@ -24,7 +24,7 @@ spec:
               - key: "json"
                 path: "enterpriseapp-mappings.json"
       containers:
-      - image: dfdsdk/aadawssync:v0.0.23
+      - image: dfdsdk/aadawssync:v0.0.24
         name: aad-aws-sync
         imagePullPolicy: Always
         volumeMounts:
