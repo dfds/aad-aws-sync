@@ -92,6 +92,7 @@ func (c *ClientO365UnofficialApi) GetAliases(ctx context.Context) ([]GetAliasesR
 }
 
 func (c *ClientO365UnofficialApi) CreateAlias(ctx context.Context, alias string, displayName string, members []string) error {
+	requireSenderAuthenticationEnabled := false
 	reqPayload := direct.O365BaseRequest{
 		CmdletInput: direct.RequestCmdletInput{
 			CmdletName: "New-DistributionGroup",
@@ -100,7 +101,7 @@ func (c *ClientO365UnofficialApi) CreateAlias(ctx context.Context, alias string,
 				Alias:                              fmt.Sprintf("%s.ssu", alias),
 				PrimarySmtpAddress:                 fmt.Sprintf("%s%s", alias, c.config.EmailSuffix),
 				MemberJoinRestriction:              "Closed",
-				RequireSenderAuthenticationEnabled: false,
+				RequireSenderAuthenticationEnabled: &requireSenderAuthenticationEnabled,
 				Members:                            members,
 				ManagedBy:                          c.config.ManagedBy,
 			},
@@ -138,13 +139,53 @@ func (c *ClientO365UnofficialApi) CreateAlias(ctx context.Context, alias string,
 }
 
 func (c *ClientO365UnofficialApi) RemoveAlias(ctx context.Context, alias string) error {
+	confirm := false
 	reqPayload := direct.O365BaseRequest{
 		CmdletInput: direct.RequestCmdletInput{
 			CmdletName: "Remove-DistributionGroup",
 			Parameters: direct.CmdletInputParameters{
 				Identity: fmt.Sprintf("%s %s", AZURE_CAPABILITY_GROUP_PREFIX, alias),
-				Confirm:  false,
+				Confirm:  &confirm,
 			},
+		},
+	}
+
+	serialisedReqPayload, err := json.Marshal(reqPayload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.o365BaseUrl(), bytes.NewBuffer(serialisedReqPayload))
+	if err != nil {
+		return err
+	}
+
+	err = c.prepareJsonRequest(req)
+	if err != nil {
+		return err
+	}
+
+	rf := NewRequestFuncs()
+	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		}
+		return nil
+	}
+	err = DoRequestWithoutDeserialise(c, req, rf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ClientO365UnofficialApi) UpdateAlias(ctx context.Context, alias string, params direct.CmdletInputParameters) error {
+	params.Identity = alias
+	reqPayload := direct.O365BaseRequest{
+		CmdletInput: direct.RequestCmdletInput{
+			CmdletName: "Set-DistributionGroup",
+			Parameters: params,
 		},
 	}
 
@@ -220,13 +261,14 @@ func (c *ClientO365UnofficialApi) AddDistributionGroupMember(ctx context.Context
 }
 
 func (c *ClientO365UnofficialApi) RemoveDistributionGroupMember(ctx context.Context, displayName string, memberEmail string) error {
+	confirm := false
 	reqPayload := direct.O365BaseRequest{
 		CmdletInput: direct.RequestCmdletInput{
 			CmdletName: "Remove-DistributionGroupMember",
 			Parameters: direct.CmdletInputParameters{
 				Identity: fmt.Sprintf("%s %s", AZURE_CAPABILITY_GROUP_PREFIX, displayName),
 				Member:   memberEmail,
-				Confirm:  false,
+				Confirm:  &confirm,
 			},
 		},
 	}

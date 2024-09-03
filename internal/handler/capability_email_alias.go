@@ -10,6 +10,7 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
 	"go.dfds.cloud/aad-aws-sync/internal/config"
 	"go.dfds.cloud/aad-aws-sync/internal/ssu_exchange"
+	"go.dfds.cloud/aad-aws-sync/internal/ssu_exchange/direct"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
@@ -235,6 +236,17 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 				}
 			}
 
+			if c.State.EmailAliasesByDisplayName[displayName].RequireSenderAuthenticationEnabled {
+				c.Logger.Info(fmt.Sprintf("Misconfigured RequireSenderAuthenticationEnabled for %s, correcting", displayName))
+				requireSenderAuthenticationEnabled := false
+				err := c.ExchangeOnlineClient.UpdateAlias(ctx, displayName, direct.CmdletInputParameters{
+					RequireSenderAuthenticationEnabled: &requireSenderAuthenticationEnabled,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
 		} else {
 			// Create alias, add members
 			members := memberStringBuilder(capa.Members)
@@ -267,7 +279,17 @@ func (c *capabilityEmailAliasHandler) ReconcileSubAliases(ctx context.Context) e
 					return err
 				}
 				c.Logger.Info(fmt.Sprintf("created email alias %s for %s", fmt.Sprintf("%s.%s", subAlias.EmailAliasValue, capa.RootID), capa.RootID))
-
+			} else {
+				if c.State.EmailAliasesByDisplayName[displayName].RequireSenderAuthenticationEnabled {
+					c.Logger.Info(fmt.Sprintf("Misconfigured RequireSenderAuthenticationEnabled for %s, correcting", displayName))
+					requireSenderAuthenticationEnabled := false
+					err := c.ExchangeOnlineClient.UpdateAlias(ctx, displayName, direct.CmdletInputParameters{
+						RequireSenderAuthenticationEnabled: &requireSenderAuthenticationEnabled,
+					})
+					if err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}

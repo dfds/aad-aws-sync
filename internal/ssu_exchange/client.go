@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/ssu_exchange/direct"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ type IClient interface {
 	GetAliases(ctx context.Context) ([]GetAliasesResponse, error)
 	CreateAlias(ctx context.Context, alias string, displayName string, members []string) error
 	RemoveAlias(ctx context.Context, alias string) error
+	UpdateAlias(ctx context.Context, alias string, params direct.CmdletInputParameters) error
 	AddDistributionGroupMember(ctx context.Context, displayName string, memberEmail string) error
 	RemoveDistributionGroupMember(ctx context.Context, displayName string, memberEmail string) error
 	RefreshAuth() error

@@ -17,12 +17,12 @@ type CmdletInputParameters struct {
 	Alias                              string   `json:"Alias,omitempty"`
 	PrimarySmtpAddress                 string   `json:"PrimarySmtpAddress,omitempty"`
 	MemberJoinRestriction              string   `json:"MemberJoinRestriction,omitempty"`
-	RequireSenderAuthenticationEnabled bool     `json:"RequireSenderAuthenticationEnabled,omitempty"`
+	RequireSenderAuthenticationEnabled *bool    `json:"RequireSenderAuthenticationEnabled,omitempty"`
 	Members                            []string `json:"Members,omitempty"`
 	Member                             string   `json:"Member,omitempty"`
 	ManagedBy                          string   `json:"ManagedBy,omitempty"`
 	Identity                           string   `json:"Identity,omitempty"`
-	Confirm                            bool     `json:"Confirm,omitempty"`
+	Confirm                            *bool    `json:"Confirm,omitempty"`
 	ResultSize                         string   `json:"ResultSize,omitempty"`
 }
 

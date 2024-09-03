@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.dfds.cloud/aad-aws-sync/internal/ssu_exchange/direct"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"io"
 	"k8s.io/utils/env"
@@ -125,6 +126,11 @@ func (c *ClientPowershellWrapper) RemoveAlias(ctx context.Context, alias string)
 	}
 
 	return nil
+}
+
+func (c *ClientPowershellWrapper) UpdateAlias(ctx context.Context, alias string, params direct.CmdletInputParameters) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (c *ClientPowershellWrapper) AddDistributionGroupMember(ctx context.Context, displayName string, memberEmail string) error {
