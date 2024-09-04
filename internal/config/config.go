@@ -27,11 +27,12 @@ type Config struct {
 		RootOrganizationsParentId string `json:"rootOrganizationsParentId"`
 	} `json:"aws"`
 	Azure struct {
-		TenantId            string `json:"tenantId"`
-		ClientId            string `json:"clientId"`
-		ClientSecret        string `json:"clientSecret"`
-		ApplicationId       string `json:"applicationId"`
-		ApplicationObjectId string `json:"applicationObjectId"`
+		TenantId             string `json:"tenantId"`
+		ClientId             string `json:"clientId"`
+		ClientSecret         string `json:"clientSecret"`
+		ApplicationId        string `json:"applicationId"`
+		ApplicationObjectId  string `json:"applicationObjectId"`
+		InternalDomainSuffix string `json:"internalDomainSuffix"`
 	} `json:"azure"`
 	CapSvc struct { // Capability-Service
 		Host         string `json:"host"`

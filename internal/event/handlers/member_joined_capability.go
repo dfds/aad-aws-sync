@@ -45,9 +45,10 @@ func MemberJoinedCapabilityHandler(ctx context.Context, event model.HandlerConte
 	})
 
 	azureClient := azure.NewAzureClient(azure.Config{
-		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		TenantId:             conf.Azure.TenantId,
+		ClientId:             conf.Azure.ClientId,
+		ClientSecret:         conf.Azure.ClientSecret,
+		InternalDomainSuffix: conf.Azure.InternalDomainSuffix,
 	})
 
 	scimClient := aws.CreateScimClient(conf.Aws.Scim.Endpoint, conf.Aws.Scim.Token)

@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
@@ -24,9 +27,10 @@ type Client struct {
 }
 
 type Config struct {
-	TenantId     string `json:"tenantId"`
-	ClientId     string `json:"clientId"`
-	ClientSecret string `json:"clientSecret"`
+	TenantId             string `json:"tenantId"`
+	ClientId             string `json:"clientId"`
+	ClientSecret         string `json:"clientSecret"`
+	InternalDomainSuffix string `json:"internalDomainSuffix"`
 }
 
 func (c *Client) RefreshAuth() error {
@@ -274,9 +278,54 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 	return nil
 }
 
+func (c *Client) PopulateGroupsWithMembers(groups *GroupsListResponse) (map[string]*Group, error) {
+	var payload map[string]*Group
+	ctx := context.Background()
+	var waitGroup sync.WaitGroup
+	sem := semaphore.NewWeighted(50)
+	var lock *sync.Mutex = &sync.Mutex{}
+
+	for _, grp := range groups.Value {
+		waitGroup.Add(1)
+
+		grp := grp
+		go func() {
+			sem.Acquire(ctx, 1)
+			defer sem.Release(1)
+			defer waitGroup.Done()
+
+			group := &Group{
+				DisplayName: grp.DisplayName,
+				Members:     []*Member{},
+				ID:          grp.ID,
+			}
+			groupMembers, err := c.GetGroupMembers(grp.ID)
+			if err != nil {
+				fmt.Println(fmt.Sprintf("GetGroupMembers failed: %v", err), zap.Error(err))
+			}
+
+			for _, groupMember := range groupMembers.Value {
+				group.Members = append(group.Members, &Member{
+					ID:                groupMember.ID,
+					DisplayName:       groupMember.DisplayName,
+					UserPrincipalName: groupMember.UserPrincipalName,
+				})
+			}
+
+			lock.Lock()
+			payload[group.DisplayName] = group
+			lock.Unlock()
+		}()
+	}
+
+	waitGroup.Wait()
+
+	return payload, nil
+}
+
 func (c *Client) AddGroupMember(groupId string, upn string) error {
 	requestPayload := AddGroupMemberRequest{
-		OdataId: fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", upn),
+		OdataId: fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", url.QueryEscape(upn)),
 	}
 
 	serialised, err := json.Marshal(requestPayload)
@@ -423,7 +472,7 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 }
 
 func (c *Client) GetUserViaUPN(upn string) (*GetUserViaUPNResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", upn), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s", url.QueryEscape(upn)), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -452,6 +501,52 @@ func (c *Client) GetUserViaUPN(upn string) (*GetUserViaUPNResponse, error) {
 	}
 
 	return payload, nil
+}
+
+func (c *Client) GetUserViaEmail(email string) (*GetUserViaUPNResponse, error) {
+	req, err := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/users", nil)
+	if err != nil {
+		return nil, err
+	}
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	urlQueries := req.URL.Query()
+	urlQueries.Add("$top", "5")
+	urlQueries.Add("$filter", fmt.Sprintf("mail eq '%s'", email))
+
+	req.URL.RawQuery = urlQueries.Encode()
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload *GetUsersResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(payload.Value) == 0 {
+		return nil, errors.New("GetUserViaEmail user not found")
+	}
+
+	return payload.Value[0], nil
+}
+
+func (c *Client) IsUserExternal(value string) bool {
+	return !strings.HasSuffix(strings.ToLower(value), c.config.InternalDomainSuffix)
 }
 
 func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {

@@ -10,6 +10,8 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/config"
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
+	"golang.org/x/sync/semaphore"
+	"sync"
 )
 
 const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
@@ -37,9 +39,10 @@ func Capsvc2AadHandler(ctx context.Context) error {
 	}
 
 	azureClient := azure.NewAzureClient(azure.Config{
-		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		TenantId:             conf.Azure.TenantId,
+		ClientId:             conf.Azure.ClientId,
+		ClientSecret:         conf.Azure.ClientSecret,
+		InternalDomainSuffix: conf.Azure.InternalDomainSuffix,
 	})
 
 	aUnits, err := azureClient.GetAdministrativeUnits()
@@ -61,32 +64,51 @@ func Capsvc2AadHandler(ctx context.Context) error {
 		capabilitiesByRootId[capability.RootID] = capability
 	}
 
-	for _, member := range aUnitMembers.Value {
-		select {
-		case <-ctx.Done():
-			util.Logger.Info("Job cancelled", zap.String("jobName", CapabilityServiceToAzureAdName))
-			return nil
-		default:
-			group := &azure.Group{
-				DisplayName: member.DisplayName,
-				ID:          member.ID,
-				Members:     []*azure.Member{},
-			}
-			groupMembers, err := azureClient.GetGroupMembers(member.ID)
-			if err != nil {
-				return err
-			}
+	{
+		ctx := context.Background()
+		var waitGroup sync.WaitGroup
+		sem := semaphore.NewWeighted(50)
+		var lock *sync.Mutex = &sync.Mutex{}
+		for _, member := range aUnitMembers.Value {
+			select {
+			case <-ctx.Done():
+				util.Logger.Info("Job cancelled", zap.String("jobName", CapabilityServiceToAzureAdName))
+				return nil
+			default:
+				waitGroup.Add(1)
+				member := member
+				go func() error {
+					sem.Acquire(ctx, 1)
+					defer sem.Release(1)
+					defer waitGroup.Done()
 
-			for _, groupMember := range groupMembers.Value {
-				group.Members = append(group.Members, &azure.Member{
-					ID:                groupMember.ID,
-					DisplayName:       groupMember.DisplayName,
-					UserPrincipalName: groupMember.UserPrincipalName,
-				})
-			}
+					group := &azure.Group{
+						DisplayName: member.DisplayName,
+						ID:          member.ID,
+						Members:     []*azure.Member{},
+					}
+					groupMembers, err := azureClient.GetGroupMembers(member.ID)
+					if err != nil {
+						return err
+					}
 
-			groupsInAzure[group.DisplayName] = group
+					for _, groupMember := range groupMembers.Value {
+						group.Members = append(group.Members, &azure.Member{
+							ID:                groupMember.ID,
+							DisplayName:       groupMember.DisplayName,
+							UserPrincipalName: groupMember.UserPrincipalName,
+						})
+					}
+
+					lock.Lock()
+					groupsInAzure[group.DisplayName] = group
+					lock.Unlock()
+					return nil
+				}()
+			}
 		}
+
+		waitGroup.Wait()
 	}
 
 	for rootId, capability := range capabilitiesByRootId {
@@ -133,9 +155,20 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				default:
 				}
 
-				if !azureGroup.HasMember(capMember.Email) {
-					util.Logger.Debug(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, capMember.Email), zap.String("jobName", CapabilityServiceToAzureAdName))
-					err = azureClient.AddGroupMember(azureGroup.ID, capMember.Email)
+				upn := capMember.Email
+				// treat user as external, look up UPN manually
+				if azureClient.IsUserExternal(upn) {
+					resp, err := azureClient.GetUserViaEmail(capMember.Email)
+					if err != nil {
+						return err
+					}
+					upn = resp.UserPrincipalName
+				}
+
+				if !azureGroup.HasMember(upn) {
+					util.Logger.Debug(fmt.Sprintf("Azure group %s missing member %s, adding.\n", azureGroup.DisplayName, upn), zap.String("jobName", CapabilityServiceToAzureAdName))
+
+					err = azureClient.AddGroupMember(azureGroup.ID, upn)
 					if err != nil {
 						if errorx.IsOfType(err, azure.AdUserNotFound) {
 							util.Logger.Debug(err.Error(), zap.String("jobName", CapabilityServiceToAzureAdName))
@@ -160,8 +193,18 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				default:
 				}
 
-				if !capability.HasMember(member.UserPrincipalName) {
-					util.Logger.Debug(fmt.Sprintf("Azure group %s contains stale member %s, removing.\n", azureGroup.DisplayName, member.UserPrincipalName), zap.String("jobName", CapabilityServiceToAzureAdName))
+				upn := member.UserPrincipalName
+				// treat user as external, look up UPN manually
+				if azureClient.IsUserExternal(upn) {
+					resp, err := azureClient.GetUserViaUPN(member.UserPrincipalName)
+					if err != nil {
+						return err
+					}
+					upn = resp.Mail
+				}
+
+				if !capability.HasMember(upn) {
+					util.Logger.Debug(fmt.Sprintf("Azure group %s contains stale member %s, removing.\n", azureGroup.DisplayName, upn), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.DeleteGroupMember(azureGroup.ID, member.ID)
 					if err != nil {
 						return err

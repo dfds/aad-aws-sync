@@ -61,9 +61,10 @@ func CapabilityCreatedHandler(ctx context.Context, event model.HandlerContext) e
 	msgLog = msgLog.With(zap.String("capabilityRootId", capability.RootID))
 
 	azureClient := azure.NewAzureClient(azure.Config{
-		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		TenantId:             conf.Azure.TenantId,
+		ClientId:             conf.Azure.ClientId,
+		ClientSecret:         conf.Azure.ClientSecret,
+		InternalDomainSuffix: conf.Azure.InternalDomainSuffix,
 	})
 
 	aUnits, err := azureClient.GetAdministrativeUnits()

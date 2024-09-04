@@ -111,9 +111,10 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 	})
 
 	azClient := azure.NewAzureClient(azure.Config{
-		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		TenantId:             conf.Azure.TenantId,
+		ClientId:             conf.Azure.ClientId,
+		ClientSecret:         conf.Azure.ClientSecret,
+		InternalDomainSuffix: conf.Azure.InternalDomainSuffix,
 	})
 
 	handler := &capabilityEmailAliasHandler{
@@ -211,6 +212,21 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 			// Reconcile group members
 			capaWithCcMembers := capa
 			capaWithCcMembers.Members = append(capaWithCcMembers.Members, capsvc.GetCapabilitiesResponseContextCapabilityMember{Email: c.Config.Exchange.CcEmail})
+
+			newMembers := []capsvc.GetCapabilitiesResponseContextCapabilityMember{}
+			for _, member := range capaWithCcMembers.Members {
+				if c.AzClient.IsUserExternal(member.Email) {
+					resp, err := c.AzClient.GetUserViaEmail(member.Email)
+					if err != nil {
+						return err
+					}
+					newMembers = append(newMembers, capsvc.GetCapabilitiesResponseContextCapabilityMember{Email: resp.UserPrincipalName})
+				} else {
+					newMembers = append(newMembers, member)
+				}
+			}
+			capaWithCcMembers.Members = newMembers
+
 			dstGroup, exists := c.State.DistributionsGroupsInAzureByDisplayName[displayName]
 			if !exists {
 				return errors.New("alias exists in Exchange Online, but equivalent group in Azure doesn't, something is off")

@@ -51,9 +51,10 @@ func AssignGroupsToAzureEnterpriseAppsHandler(ctx context.Context) error {
 	}
 
 	azClient := azure.NewAzureClient(azure.Config{
-		TenantId:     conf.Azure.TenantId,
-		ClientId:     conf.Azure.ClientId,
-		ClientSecret: conf.Azure.ClientSecret,
+		TenantId:             conf.Azure.TenantId,
+		ClientId:             conf.Azure.ClientId,
+		ClientSecret:         conf.Azure.ClientSecret,
+		InternalDomainSuffix: conf.Azure.InternalDomainSuffix,
 	})
 
 	groups, err := azClient.GetGroups(azure.AZURE_CAPABILITY_GROUP_PREFIX)

@@ -84,6 +84,11 @@ type AddGroupMemberRequest struct {
 	OdataId string `json:"@odata.id"`
 }
 
+type GetUsersResponse struct {
+	OdataContext string                   `json:"@odata.context"`
+	Value        []*GetUserViaUPNResponse `json:"value"`
+}
+
 type GetUserViaUPNResponse struct {
 	OdataContext      string        `json:"@odata.context"`
 	BusinessPhones    []interface{} `json:"businessPhones"`
