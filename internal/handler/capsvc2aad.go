@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/joomcode/errorx"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
 	"go.dfds.cloud/aad-aws-sync/internal/capsvc"
@@ -11,7 +13,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
-	"sync"
 )
 
 const CAPABILITY_GROUP_PREFIX = "CI_SSU_Cap -"
@@ -56,6 +57,16 @@ func Capsvc2AadHandler(ctx context.Context) error {
 	}
 
 	aUnitMembers, err := azureClient.GetAdministrativeUnitMembers(aUnit.ID)
+	if err != nil {
+		return err
+	}
+
+	err = findDuplicateGroupsAndEliminate(azureClient, aUnit.ID, aUnitMembers, capabilities)
+	if err != nil {
+		return err
+	}
+
+	aUnitMembers, err = azureClient.GetAdministrativeUnitMembers(aUnit.ID)
 	if err != nil {
 		return err
 	}
@@ -212,6 +223,40 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				}
 			}
 
+		}
+	}
+	return nil
+}
+
+func findDuplicateGroupsAndEliminate(client *azure.Client, aUnitId string, groups *azure.GetAdministrativeUnitMembersResponse, capabilities []*capsvc.GetCapabilitiesResponseContextCapability) error {
+	for _, capability := range capabilities {
+		groupName := azure.GenerateAzureGroupDisplayName(capability.RootID)
+		var matches []azure.GetAdministrativeUnitMembersResponseUnit
+		for _, group := range groups.Value {
+			if group.DisplayName == groupName {
+				matches = append(matches, group)
+			}
+		}
+		if len(matches) > 1 {
+			util.Logger.Info(fmt.Sprintf("Duplicate groups found for Capability %s, eliminating excess", capability.RootID), zap.String("jobName", CapabilityServiceToAzureAdName))
+			oldest := matches[0]
+			oldestIndex := 0
+			for i, group := range matches {
+				if group.CreatedDateTime.Before(oldest.CreatedDateTime) {
+					oldest = group
+					oldestIndex = i
+				}
+				util.Logger.Debug(fmt.Sprintf("%s (%s) - %s", group.CreatedDateTime, group.ID, group.DisplayName), zap.String("jobName", CapabilityServiceToAzureAdName))
+			}
+			groupsWithoutOldest := append(matches[:oldestIndex], matches[oldestIndex+1:]...)
+			util.Logger.Debug(fmt.Sprintf("Oldest is %s - %s", oldest.ID, oldest.CreatedDateTime), zap.String("jobName", CapabilityServiceToAzureAdName))
+			for _, group := range groupsWithoutOldest {
+				util.Logger.Info(fmt.Sprintf("Removing group %s (%s)", group.ID, group.DisplayName), zap.String("jobName", CapabilityServiceToAzureAdName))
+				err := client.DeleteAdministrativeUnitGroup(aUnitId, group.ID)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
