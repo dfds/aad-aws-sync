@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.dfds.cloud/aad-aws-sync/internal/azure"
@@ -14,7 +17,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
-	"sync"
 )
 
 const CapabilityEmailAliasName = "capabilityEmailAlias"
@@ -237,6 +239,10 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 					c.Logger.Info(fmt.Sprintf("%s missing from exchange alias %s, adding", capabilityMember.Email, capa.RootID))
 					err := c.ExchangeOnlineClient.AddDistributionGroupMember(ctx, fmt.Sprintf("%s %s", capa.RootID, MainAlias.DisplayName), capabilityMember.Email)
 					if err != nil {
+						if strings.Contains(err.Error(), "status code: 404") {
+							c.Logger.Info(fmt.Sprintf("user %s not found, unable to add", capabilityMember.Email))
+							continue
+						}
 						return err
 					}
 				}
