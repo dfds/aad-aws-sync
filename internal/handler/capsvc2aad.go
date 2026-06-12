@@ -38,6 +38,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	capabilities = filterIgnoredMembers(capabilities)
 
 	azureClient := azure.NewAzureClient(azure.Config{
 		TenantId:             conf.Azure.TenantId,
@@ -202,6 +203,11 @@ func Capsvc2AadHandler(ctx context.Context) error {
 					util.Logger.Info("Job cancelled", zap.String("jobName", CapabilityServiceToAzureAdName))
 					return nil
 				default:
+				}
+
+				// Ignored service accounts are left untouched, never removed.
+				if ShouldIgnoreUser(member.UserPrincipalName) {
+					continue
 				}
 
 				upn := member.UserPrincipalName

@@ -28,6 +28,12 @@ func MemberLeftCapabilityHandler(ctx context.Context, event model.HandlerContext
 	}
 	msgLog = msgLog.With(zap.String("capabilityId", msg.Payload.CapabilityID))
 
+	// Ignored service accounts are left untouched, never removed from any group.
+	if handler.ShouldIgnoreUser(msg.Payload.UserID) {
+		msgLog.Info(fmt.Sprintf("Ignoring member %s, excluded from syncing", msg.Payload.UserID))
+		return nil
+	}
+
 	var capability *capsvc.GetCapabilitiesResponseContextCapability
 
 	conf, err := config.LoadConfig()

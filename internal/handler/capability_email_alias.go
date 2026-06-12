@@ -133,7 +133,7 @@ func CapabilityEmailAliasHandler(ctx context.Context) error {
 		return err
 	}
 
-	handler.Cache.Capabilities = capabilities
+	handler.Cache.Capabilities = filterIgnoredMembers(capabilities)
 
 	// Get aliases from Exchange
 	aliases, err := ssuClient.GetAliases(ctx)
@@ -249,6 +249,10 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 			}
 
 			for _, azGrpMember := range dstGroup.Members {
+				// Ignored service accounts are left untouched, never removed.
+				if ShouldIgnoreUser(azGrpMember.UserPrincipalName) {
+					continue
+				}
 				if !capaWithCcMembers.HasMember(azGrpMember.UserPrincipalName) {
 					c.Logger.Info(fmt.Sprintf("exchange alias %s contains stale member %s, removing", capa.RootID, azGrpMember.UserPrincipalName))
 					err := c.ExchangeOnlineClient.RemoveDistributionGroupMember(ctx, fmt.Sprintf("%s %s", capa.RootID, MainAlias.DisplayName), azGrpMember.UserPrincipalName)
