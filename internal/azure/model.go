@@ -297,9 +297,16 @@ type Group struct {
 	Members     []*Member `json:"members"`
 }
 
-func (g *Group) HasMember(email string) bool {
+// HasMember reports whether the group contains a member matching value, which
+// may be either a UserPrincipalName or a mail address. A user's UPN and mail
+// can differ (e.g. UPN aa@dfds.com vs mail aaa@dfds.com), so both are
+// compared to avoid false negatives that would trigger redundant add calls.
+func (g *Group) HasMember(value string) bool {
 	for _, member := range g.Members {
-		if strings.ToLower(member.UserPrincipalName) == strings.ToLower(email) {
+		if strings.EqualFold(member.UserPrincipalName, value) {
+			return true
+		}
+		if member.Mail != "" && strings.EqualFold(member.Mail, value) {
 			return true
 		}
 	}
@@ -311,4 +318,5 @@ type Member struct {
 	ID                string `json:"id"`
 	DisplayName       string `json:"displayName"`
 	UserPrincipalName string `json:"userPrincipalName"`
+	Mail              string `json:"mail"`
 }

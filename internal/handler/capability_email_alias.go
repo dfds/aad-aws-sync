@@ -243,6 +243,14 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 							c.Logger.Info(fmt.Sprintf("user %s not found, unable to add", capabilityMember.Email))
 							continue
 						}
+						// The member already exists in the Exchange group (e.g. their
+						// Azure AD UPN differs from their mail, so HasMember reported a
+						// false negative). This is a benign no-op, not a failure — keep
+						// reconciling the remaining members rather than aborting the run.
+						if strings.Contains(err.Error(), "MemberAlreadyExistsException") {
+							c.Logger.Info(fmt.Sprintf("user %s already a member, skipping", capabilityMember.Email))
+							continue
+						}
 						return err
 					}
 				}
@@ -253,7 +261,10 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 				if ShouldIgnoreUser(azGrpMember.UserPrincipalName) {
 					continue
 				}
-				if !capaWithCcMembers.HasMember(azGrpMember.UserPrincipalName) {
+				// A member may appear in the group under their UPN while the
+				// capability lists them by mail (UPN jambar@dfds.com vs mail
+				// jabar@dfds.com). Match on either before treating them as stale.
+				if !capaWithCcMembers.HasMember(azGrpMember.UserPrincipalName) && !(azGrpMember.Mail != "" && capaWithCcMembers.HasMember(azGrpMember.Mail)) {
 					c.Logger.Info(fmt.Sprintf("exchange alias %s contains stale member %s, removing", capa.RootID, azGrpMember.UserPrincipalName))
 					err := c.ExchangeOnlineClient.RemoveDistributionGroupMember(ctx, fmt.Sprintf("%s %s", capa.RootID, MainAlias.DisplayName), azGrpMember.UserPrincipalName)
 					if err != nil {
@@ -352,6 +363,7 @@ func (c *capabilityEmailAliasHandler) PopulateGroupsWithMembers(ctx context.Cont
 					ID:                groupMember.ID,
 					DisplayName:       groupMember.DisplayName,
 					UserPrincipalName: groupMember.UserPrincipalName,
+					Mail:              groupMember.Mail,
 				})
 			}
 
