@@ -220,7 +220,7 @@ func (c *capabilityEmailAliasHandler) ReconcileMainAlias(ctx context.Context) er
 				if c.AzClient.IsUserExternal(member.Email) {
 					resp, err := c.AzClient.GetUserViaEmail(member.Email)
 					if err != nil {
-						return err
+						return fmt.Errorf("capability %s, resolving external member %s: %w", capa.RootID, member.Email, err)
 					}
 					newMembers = append(newMembers, capsvc.GetCapabilitiesResponseContextCapabilityMember{Email: resp.UserPrincipalName})
 				} else {

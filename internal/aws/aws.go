@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,6 +58,15 @@ func (c *ScimClient) prepareHttpRequest(h *http.Request) error {
 	return nil
 }
 
+// scimUnexpectedStatusError builds a diagnosable error for an unexpected SCIM
+// HTTP status: it names the operation (caller embeds the relevant identifier)
+// and includes the response body. The "status code: %d" substring is kept for
+// consistency with the other clients.
+func scimUnexpectedStatusError(operation string, resp *http.Response) error {
+	body, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("%s returned unexpected status code: %d, body: %s", operation, resp.StatusCode, strings.TrimSpace(string(body)))
+}
+
 func (c *ScimClient) GetUserViaExternalId(id string) (*ScimGetUserResponse, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/scim/v2/Users", c.endpoint), nil)
 	if err != nil {
@@ -97,7 +105,7 @@ func (c *ScimClient) GetUserViaExternalId(id string) (*ScimGetUserResponse, erro
 		return payload.Resources[0], nil
 	}
 
-	return nil, errors.New("response didn't return 1 exact match")
+	return nil, fmt.Errorf("GetUserViaExternalId(%s): expected 1 exact match, got %d", id, payload.TotalResults)
 }
 
 func (c *ScimClient) GetGroupViaDisplayName(name string) (*ScimGetGroupResponse, error) {
@@ -138,7 +146,7 @@ func (c *ScimClient) GetGroupViaDisplayName(name string) (*ScimGetGroupResponse,
 		return payload.Resources[0], nil
 	}
 
-	return nil, errors.New("response didn't return 1 exact match")
+	return nil, fmt.Errorf("GetGroupViaDisplayName(%s): expected 1 exact match, got %d", name, payload.TotalResults)
 }
 
 func (c *ScimClient) CreateGroup(data ScimCreateGroupRequest) error {
@@ -170,7 +178,7 @@ func (c *ScimClient) CreateGroup(data ScimCreateGroupRequest) error {
 		if resp.StatusCode == 409 {
 			return nil
 		}
-		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+		return scimUnexpectedStatusError(fmt.Sprintf("CreateGroup(%s)", data.DisplayName), resp)
 	}
 
 	return nil
@@ -195,7 +203,7 @@ func (c *ScimClient) RemoveUser(id string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+		return scimUnexpectedStatusError(fmt.Sprintf("RemoveUser(%s)", id), resp)
 	}
 
 	return nil
@@ -220,7 +228,7 @@ func (c *ScimClient) RemoveGroup(id string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+		return scimUnexpectedStatusError(fmt.Sprintf("RemoveGroup(%s)", id), resp)
 	}
 
 	return nil
@@ -255,7 +263,7 @@ func (c *ScimClient) CreateUser(data ScimCreateUserRequest) error {
 		if resp.StatusCode == 409 {
 			return nil
 		}
-		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+		return scimUnexpectedStatusError(fmt.Sprintf("CreateUser(%s)", data.UserName), resp)
 	}
 
 	return nil
@@ -288,7 +296,7 @@ func (c *ScimClient) PatchAddMembersToGroup(groupId string, members ...string) e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+		return scimUnexpectedStatusError(fmt.Sprintf("PatchAddMembersToGroup(group %s, members %s)", groupId, strings.Join(members, ",")), resp)
 	}
 
 	return nil
@@ -321,7 +329,7 @@ func (c *ScimClient) PatchRemoveMembersFromGroup(groupId string, members ...stri
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return errors.New(fmt.Sprintf("Received unexpected status code response, %d", resp.StatusCode))
+		return scimUnexpectedStatusError(fmt.Sprintf("PatchRemoveMembersFromGroup(group %s, members %s)", groupId, strings.Join(members, ",")), resp)
 	}
 
 	return nil

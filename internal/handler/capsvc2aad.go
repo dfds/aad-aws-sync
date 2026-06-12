@@ -171,7 +171,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				if azureClient.IsUserExternal(upn) {
 					resp, err := azureClient.GetUserViaEmail(capMember.Email)
 					if err != nil {
-						return err
+						return fmt.Errorf("capability %s, resolving external member %s: %w", capability.RootID, capMember.Email, err)
 					}
 					upn = resp.UserPrincipalName
 				}
@@ -190,7 +190,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 							continue
 						}
 
-						return err
+						return fmt.Errorf("capability %s, adding member %s to group %s: %w", capability.RootID, upn, azureGroup.DisplayName, err)
 					}
 				}
 			}
@@ -209,7 +209,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				if azureClient.IsUserExternal(upn) {
 					resp, err := azureClient.GetUserViaUPN(member.UserPrincipalName)
 					if err != nil {
-						return err
+						return fmt.Errorf("capability %s, resolving stale member %s: %w", capability.RootID, member.UserPrincipalName, err)
 					}
 					upn = resp.Mail
 				}
@@ -218,7 +218,7 @@ func Capsvc2AadHandler(ctx context.Context) error {
 					util.Logger.Debug(fmt.Sprintf("Azure group %s contains stale member %s, removing.\n", azureGroup.DisplayName, upn), zap.String("jobName", CapabilityServiceToAzureAdName))
 					err = azureClient.DeleteGroupMember(azureGroup.ID, member.ID)
 					if err != nil {
-						return err
+						return fmt.Errorf("capability %s, removing member %s from group %s: %w", capability.RootID, upn, azureGroup.DisplayName, err)
 					}
 				}
 			}

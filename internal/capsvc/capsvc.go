@@ -55,13 +55,13 @@ func (c *Client) GetCapabilities() ([]*GetCapabilitiesResponseContextCapability,
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-	}
-
 	rawData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("GetCapabilities GET %s returned unexpected status code: %d, body: %s", req.URL.String(), resp.StatusCode, strings.TrimSpace(string(rawData)))
 	}
 
 	var payload []*GetCapabilitiesResponseContextCapability
@@ -112,7 +112,7 @@ func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("capsvc token request returned unexpected status code: %d, body: %s", resp.StatusCode, strings.TrimSpace(string(rawData)))
 	}
 
 	var tokenResponse *util.RefreshAuthResponse

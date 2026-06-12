@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"golang.org/x/sync/semaphore"
 	"io"
@@ -242,7 +241,7 @@ func (c *Client) CreateAdministrativeUnitGroup(ctx context.Context, requestPaylo
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return nil, ApiError{resp.StatusCode}
+		return nil, unexpectedStatusError(fmt.Sprintf("CreateAdministrativeUnitGroup(group %s, parentAU %s)", requestPayload.DisplayName, requestPayload.ParentAdministrativeUnitId), resp.StatusCode, rawData)
 	}
 
 	var payload CreateAdministrativeUnitGroupResponse
@@ -272,7 +271,8 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return unexpectedStatusError(fmt.Sprintf("DeleteAdministrativeUnitGroup(aUnit %s, group %s)", aUnitId, groupId), resp.StatusCode, body)
 	}
 
 	return nil
@@ -539,7 +539,7 @@ func (c *Client) GetUserViaEmail(email string) (*GetUserViaUPNResponse, error) {
 	}
 
 	if len(payload.Value) == 0 {
-		return nil, errors.New("GetUserViaEmail user not found")
+		return nil, fmt.Errorf("GetUserViaEmail: no user found for email %s", email)
 	}
 
 	return payload.Value[0], nil
@@ -718,7 +718,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 	}
 
 	if resp.StatusCode != 201 {
-		return nil, fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		return nil, unexpectedStatusError(fmt.Sprintf("AssignGroupToApplication(app %s, group %s, role %s)", appObjectId, groupId, roleId), resp.StatusCode, rawData)
 	}
 
 	var payload *AssignGroupToApplicationResponse
@@ -749,7 +749,8 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return unexpectedStatusError(fmt.Sprintf("UnassignGroupFromApplication(group %s, assignment %s)", groupId, assignmentId), resp.StatusCode, body)
 	}
 
 	return nil

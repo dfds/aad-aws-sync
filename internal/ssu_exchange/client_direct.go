@@ -9,7 +9,6 @@ import (
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"io"
 	"k8s.io/utils/env"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,6 +18,63 @@ type ClientO365UnofficialApi struct {
 	httpClient  *http.Client
 	tokenClient *util.TokenClient
 	config      Config
+}
+
+// o365AnchorMailbox is the well-known arbitration/system mailbox the adminapi
+// InvokeCommand endpoint uses to route org-level cmdlets. The endpoint returns
+// a bare 403 for write cmdlets when this header is absent, so every request
+// sets it (see prepareHttpRequest).
+const o365AnchorMailbox = "UPN:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@dfds.onmicrosoft.com"
+
+// newStatusCodePostResponse returns a PostResponse hook that, on a non-200
+// status, reads the response body and returns an error annotated with the
+// cmdlet name, the target recipient it acted on, the status code, and the
+// body. The O365 unofficial API returns the actual failure reason (e.g. the
+// denied recipient/cmdlet on a 403) in the body, so surfacing it together
+// with the target is what makes these errors diagnosable.
+func newStatusCodePostResponse(cmdletName string, params direct.CmdletInputParameters) func(req *http.Request, resp *http.Response) error {
+	target := formatCmdletTarget(params)
+	return func(req *http.Request, resp *http.Response) error {
+		if resp.StatusCode == http.StatusOK {
+			return nil
+		}
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("cmdlet %s for target %q returned unexpected status code: %d, body: %s%s", cmdletName, target, resp.StatusCode, strings.TrimSpace(string(body)), formatDiagnosticHeaders(resp))
+	}
+}
+
+// formatDiagnosticHeaders surfaces the response headers Exchange Online uses to
+// explain auth/RBAC failures. The adminapi often returns an empty body on a
+// 403, putting the real reason (e.g. a denied management role) in
+// x-ms-diagnostics instead.
+func formatDiagnosticHeaders(resp *http.Response) string {
+	var parts []string
+	for _, h := range []string{"X-Ms-Diagnostics", "Www-Authenticate", "X-Calculatedbetarget", "X-Backendhttpstatus"} {
+		if v := resp.Header.Get(h); v != "" {
+			parts = append(parts, fmt.Sprintf("%s: %s", h, v))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return ", headers: {" + strings.Join(parts, "; ") + "}"
+}
+
+// formatCmdletTarget builds a human-readable identifier for the recipient a
+// cmdlet acts on, so a failure names the distribution group (and member, for
+// membership cmdlets) rather than just the cmdlet.
+func formatCmdletTarget(p direct.CmdletInputParameters) string {
+	identity := p.Identity
+	if identity == "" {
+		identity = p.Name // New-DistributionGroup uses Name rather than Identity
+	}
+	if identity == "" {
+		identity = p.Filter // read cmdlets (Get-DistributionGroup) target by Filter
+	}
+	if p.Member != "" {
+		return fmt.Sprintf("%s member %s", identity, p.Member)
+	}
+	return identity
 }
 
 func (c *ClientO365UnofficialApi) o365BaseUrl() string {
@@ -48,8 +104,6 @@ func (c *ClientO365UnofficialApi) GetAliases(ctx context.Context) ([]GetAliasesR
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("X-AnchorMailbox", "UPN:SystemMailbox{bb558c35-97f1-4cb9-8ff7-d53741dc928c}@dfds.onmicrosoft.com")
-
 		if skipToken != nil {
 			req.URL, err = url.Parse(*skipToken)
 			if err != nil {
@@ -63,17 +117,7 @@ func (c *ClientO365UnofficialApi) GetAliases(ctx context.Context) ([]GetAliasesR
 		}
 
 		rf := NewRequestFuncs()
-		rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-			if resp.StatusCode != 200 {
-				rawData, err := io.ReadAll(resp.Body)
-				if err != nil {
-					log.Fatal(err)
-				}
-				fmt.Println(string(rawData))
-				return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-			}
-			return nil
-		}
+		rf.PostResponse = newStatusCodePostResponse(reqPayload.CmdletInput.CmdletName, reqPayload.CmdletInput.Parameters)
 		payload, err := DoRequest[direct.O365ResponseWrapper[GetAliasesResponse]](c, req, rf)
 		if err != nil {
 			return nil, err
@@ -124,12 +168,7 @@ func (c *ClientO365UnofficialApi) CreateAlias(ctx context.Context, alias string,
 	}
 
 	rf := NewRequestFuncs()
-	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-		}
-		return nil
-	}
+	rf.PostResponse = newStatusCodePostResponse(reqPayload.CmdletInput.CmdletName, reqPayload.CmdletInput.Parameters)
 	err = DoRequestWithoutDeserialise(c, req, rf)
 	if err != nil {
 		return err
@@ -166,12 +205,7 @@ func (c *ClientO365UnofficialApi) RemoveAlias(ctx context.Context, alias string)
 	}
 
 	rf := NewRequestFuncs()
-	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-		}
-		return nil
-	}
+	rf.PostResponse = newStatusCodePostResponse(reqPayload.CmdletInput.CmdletName, reqPayload.CmdletInput.Parameters)
 	err = DoRequestWithoutDeserialise(c, req, rf)
 	if err != nil {
 		return err
@@ -205,12 +239,7 @@ func (c *ClientO365UnofficialApi) UpdateAlias(ctx context.Context, alias string,
 	}
 
 	rf := NewRequestFuncs()
-	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-		}
-		return nil
-	}
+	rf.PostResponse = newStatusCodePostResponse(reqPayload.CmdletInput.CmdletName, reqPayload.CmdletInput.Parameters)
 	err = DoRequestWithoutDeserialise(c, req, rf)
 	if err != nil {
 		return err
@@ -246,12 +275,7 @@ func (c *ClientO365UnofficialApi) AddDistributionGroupMember(ctx context.Context
 	}
 
 	rf := NewRequestFuncs()
-	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-		}
-		return nil
-	}
+	rf.PostResponse = newStatusCodePostResponse(reqPayload.CmdletInput.CmdletName, reqPayload.CmdletInput.Parameters)
 	err = DoRequestWithoutDeserialise(c, req, rf)
 	if err != nil {
 		return err
@@ -289,12 +313,7 @@ func (c *ClientO365UnofficialApi) RemoveDistributionGroupMember(ctx context.Cont
 	}
 
 	rf := NewRequestFuncs()
-	rf.PostResponse = func(req *http.Request, resp *http.Response) error {
-		if resp.StatusCode != 200 {
-			return fmt.Errorf("response returned unexpected status code: %d", resp.StatusCode)
-		}
-		return nil
-	}
+	rf.PostResponse = newStatusCodePostResponse(reqPayload.CmdletInput.CmdletName, reqPayload.CmdletInput.Parameters)
 	err = DoRequestWithoutDeserialise(c, req, rf)
 	if err != nil {
 		return err
@@ -360,6 +379,7 @@ func (c *ClientO365UnofficialApi) prepareHttpRequest(req *http.Request) error {
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.tokenClient.Token.GetToken()))
 	req.Header.Set("User-Agent", "aad-aws-sync - github.com/dfds/aad-aws-sync")
+	req.Header.Set("X-AnchorMailbox", o365AnchorMailbox)
 	return nil
 }
 

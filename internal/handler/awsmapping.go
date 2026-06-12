@@ -84,7 +84,7 @@ func AwsMappingHandler(ctx context.Context) error {
 			TargetType:       "AWS_ACCOUNT",
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("assigning group %s to account %s: %w", *resp.Group.DisplayName, *resp.Account.Name, err)
 		}
 	}
 
@@ -155,7 +155,7 @@ func addToSharedRole(manageSso *aws.ManageSso, ssoClient *ssoadmin.Client, req a
 			TargetType:       "AWS_ACCOUNT",
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("assigning group %s to account %s with permission set %s: %w", *grp.DisplayName, req.AwsAccountNameAlias, req.Name, err)
 		}
 	}
 

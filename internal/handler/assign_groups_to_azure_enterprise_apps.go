@@ -65,7 +65,7 @@ func AssignGroupsToAzureEnterpriseAppsHandler(ctx context.Context) error {
 	for _, app := range apps {
 		appRoles, err := azClient.GetApplicationRoles(app.AppId)
 		if err != nil {
-			return err
+			return fmt.Errorf("application %s, getting roles: %w", app.AppId, err)
 		}
 
 		appRoleId, err := appRoles.GetRoleId("User")
@@ -93,7 +93,7 @@ func AssignGroupsToAzureEnterpriseAppsHandler(ctx context.Context) error {
 				util.Logger.Info(fmt.Sprintf("Group %s has not been assigned to application yet, assigning", group.DisplayName), zap.String("jobName", AzureAdToAwsName))
 				_, err := azClient.AssignGroupToApplication(app.ObjectId, group.ID, appRoleId)
 				if err != nil {
-					return err
+					return fmt.Errorf("application %s, assigning group %s: %w", app.AppId, group.DisplayName, err)
 				}
 			}
 		}
