@@ -167,14 +167,21 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				default:
 				}
 
-				upn := capMember.Email
-				// treat user as external, look up UPN manually
-				if azureClient.IsUserExternal(upn) {
-					resp, err := azureClient.GetUserViaEmail(capMember.Email)
-					if err != nil {
-						return fmt.Errorf("capability %s, resolving external member %s: %w", capability.RootID, capMember.Email, err)
+				// Prefer the UserID supplied by selfservice-api, which is the user's
+				// UPN and is authoritative even when it differs from their email.
+				upn := capMember.UserID
+				if upn == "" {
+					// Fallback for members without a UserID (e.g. selfservice-api not yet
+					// upgraded): resolve the UPN the legacy way via the member's email.
+					upn = capMember.Email
+					// treat user as external, look up UPN manually
+					if azureClient.IsUserExternal(upn) {
+						resp, err := azureClient.GetUserViaEmail(capMember.Email)
+						if err != nil {
+							return fmt.Errorf("capability %s, resolving external member %s: %w", capability.RootID, capMember.Email, err)
+						}
+						upn = resp.UserPrincipalName
 					}
-					upn = resp.UserPrincipalName
 				}
 
 				if !azureGroup.HasMember(upn) {
