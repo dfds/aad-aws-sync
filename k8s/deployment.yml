@@ -24,7 +24,7 @@ spec:
               - key: "json"
                 path: "enterpriseapp-mappings.json"
       containers:
-      - image: dfdsdk/aadawssync:v0.0.30
+      - image: dfdsdk/aadawssync:v0.0.31
         name: aad-aws-sync
         imagePullPolicy: Always
         volumeMounts:
@@ -74,7 +74,7 @@ spec:
         # granted the Graph User.Read.All application permission (required to
         # read directReports); otherwise the job errors on every run.
         - name: AAS_SCHEDULER_JOB_TIUSERGROUP_ENABLE
-          value: "false"
+          value: "true"
         - name: AAS_SCHEDULER_JOB_TIUSERGROUP_INTERVAL
           value: "1h"
         - name: AAS_HANDLER_TIUSERGROUP_ROOTUSERID
