@@ -77,8 +77,6 @@ spec:
           value: "true"
         - name: AAS_SCHEDULER_JOB_TIUSERGROUP_INTERVAL
           value: "1h"
-        - name: AAS_HANDLER_TIUSERGROUP_ROOTUSERID
-          value: "" # TODO: object id or UPN of the T&I root manager
         envFrom:
           - secretRef:
               name: aad-aws-sync
