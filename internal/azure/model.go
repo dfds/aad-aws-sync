@@ -46,8 +46,9 @@ type GroupsListResponse struct {
 }
 
 type GroupMembers struct {
-	OdataContext string `json:"@odata.context"`
-	Value        []struct {
+	OdataContext  string `json:"@odata.context"`
+	OdataNextLink string `json:"@odata.nextLink"`
+	Value         []struct {
 		OdataType         string        `json:"@odata.type"`
 		ID                string        `json:"id"`
 		BusinessPhones    []interface{} `json:"businessPhones"`
@@ -102,6 +103,21 @@ type GetUserViaUPNResponse struct {
 	Surname           string        `json:"surname"`
 	UserPrincipalName string        `json:"userPrincipalName"`
 	ID                string        `json:"id"`
+}
+
+type GetDirectReportsResponse struct {
+	OdataContext  string          `json:"@odata.context"`
+	OdataNextLink string          `json:"@odata.nextLink"`
+	Value         []*DirectReport `json:"value"`
+}
+
+type DirectReport struct {
+	OdataType         string `json:"@odata.type"`
+	ID                string `json:"id"`
+	DisplayName       string `json:"displayName"`
+	UserPrincipalName string `json:"userPrincipalName"`
+	Mail              string `json:"mail"`
+	AccountEnabled    *bool  `json:"accountEnabled"`
 }
 
 type CreateAdministrativeUnitGroupResponse struct {

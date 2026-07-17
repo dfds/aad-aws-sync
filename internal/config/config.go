@@ -33,6 +33,9 @@ type Config struct {
 		ApplicationId        string `json:"applicationId"`
 		ApplicationObjectId  string `json:"applicationObjectId"`
 		InternalDomainSuffix string `json:"internalDomainSuffix"`
+		RateLimitPerSec      int    `json:"rateLimitPerSec" default:"35"`
+		RateLimitBurst       int    `json:"rateLimitBurst" default:"35"`
+		MaxRetries           int    `json:"maxRetries" default:"5"`
 	} `json:"azure"`
 	CapSvc struct { // Capability-Service
 		Host         string `json:"host"`
@@ -52,6 +55,13 @@ type Config struct {
 		AssignGroups2AzureEnterpriseApps struct {
 			DataFilePath string `json:"dataFilePath"`
 		} `json:"assignGroups2AzureEnterpriseApps"`
+		TIUserGroup struct {
+			RootUserID             string  `json:"rootUserId"`
+			GroupDisplayName       string  `json:"groupDisplayName" default:"CI_SSU_U - T&I"`
+			MailNickname           string  `json:"mailNickname" default:"ci-ssu_u_t-and-i"`
+			AdministrativeUnitName string  `json:"administrativeUnitName" default:"Team - Cloud Engineering - Self service"`
+			MaxRemovalFraction     float64 `json:"maxRemovalFraction" default:"0.3"`
+		} `json:"tiUserGroup"`
 	} `json:"handler"`
 	Log struct {
 		Level string `json:"level"`

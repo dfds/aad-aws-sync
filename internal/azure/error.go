@@ -29,5 +29,6 @@ var (
 	AzureError     = errorx.NewNamespace("azure")
 	AdUserNotFound = AzureError.NewType("ad_user_not_found")
 	HttpError403   = AzureError.NewType("http_error_403")
+	HttpError404   = AzureError.NewType("http_error_404")
 	HttpError      = AzureError.NewType("http_error")
 )

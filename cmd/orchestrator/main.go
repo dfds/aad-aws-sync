@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"go.dfds.cloud/aad-aws-sync/internal/event"
-	"go.dfds.cloud/aad-aws-sync/internal/handler"
-	"go.uber.org/zap"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +9,10 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"go.dfds.cloud/aad-aws-sync/internal/event"
+	"go.dfds.cloud/aad-aws-sync/internal/handler"
+	"go.uber.org/zap"
 
 	"go.dfds.cloud/aad-aws-sync/internal/middleware"
 
@@ -140,6 +141,21 @@ func runCapSvc2Azure(c *gin.Context) {
 	}
 }
 
+func runTIUserGroup(c *gin.Context) {
+	orc := middleware.GetOrchestrator(c)
+
+	if orc.Jobs["tiUserGroup"] != nil {
+		if !orc.Jobs["tiUserGroup"].Status.InProgress() {
+			orc.Jobs["tiUserGroup"].Run()
+			c.IndentedJSON(http.StatusCreated, gin.H{"message": "job created"})
+		} else {
+			c.IndentedJSON(http.StatusConflict, gin.H{"message": "job in progress"})
+		}
+	} else {
+		c.IndentedJSON(http.StatusNotFound, gin.H{"message": "job not found"})
+	}
+}
+
 // main
 // Sets up:
 // - Prometheus metrics
@@ -175,6 +191,7 @@ func main() {
 	orc.AddJob(configPrefix, orchestrator.NewJob("aws2K8s", handler.Aws2K8sHandler), &orchestrator.Schedule{})
 	orc.AddJob(configPrefix, orchestrator.NewJob("capabilityEmailAlias", handler.CapabilityEmailAliasHandler), &orchestrator.Schedule{})
 	orc.AddJob(configPrefix, orchestrator.NewJob("assignGroups2AzureEnterpriseApps", handler.AssignGroupsToAzureEnterpriseAppsHandler), &orchestrator.Schedule{})
+	orc.AddJob(configPrefix, orchestrator.NewJob("tiUserGroup", handler.TIUserGroupHandler), &orchestrator.Schedule{})
 
 	// Orchestrator goroutine; Handles scheduling jobs
 	orc.Run()
@@ -207,6 +224,7 @@ func main() {
 		v1.POST("/awsmapping", runAwsMapping)
 		v1.POST("/aws2k8s", runAws2K8s)
 		v1.POST("/capsvc2azure", runCapSvc2Azure)
+		v1.POST("/tiusergroup", runTIUserGroup)
 		v1.GET("/mgmt/shutdown", func(c *gin.Context) {
 			go func() {
 				time.Sleep(time.Second * 2)

@@ -5,12 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"golang.org/x/sync/semaphore"
+	"golang.org/x/time/rate"
 
 	"go.dfds.cloud/aad-aws-sync/internal/util"
 	"go.uber.org/zap"
@@ -23,6 +27,8 @@ type Client struct {
 	httpClient  *http.Client
 	tokenClient *util.TokenClient
 	config      Config
+	limiter     *rate.Limiter
+	maxRetries  int
 }
 
 type Config struct {
@@ -30,6 +36,90 @@ type Config struct {
 	ClientId             string `json:"clientId"`
 	ClientSecret         string `json:"clientSecret"`
 	InternalDomainSuffix string `json:"internalDomainSuffix"`
+	RateLimitPerSec      int    `json:"rateLimitPerSec"`
+	RateLimitBurst       int    `json:"rateLimitBurst"`
+	MaxRetries           int    `json:"maxRetries"`
+}
+
+const (
+	// Microsoft Graph allows 455 requests / 10s (~45/s) per app per tenant for
+	// the directory resources this service uses (users, groups, administrative
+	// units). 35/s leaves headroom below that while the shared limiter keeps all
+	// concurrent jobs within a single budget
+	defaultRateLimitPerSec = 35
+	defaultRateLimitBurst  = 35
+	defaultMaxRetries      = 5
+	maxRetryBackoff        = 30 * time.Second
+)
+
+var (
+	sharedLimiterOnce sync.Once
+	sharedLimiter     *rate.Limiter
+)
+
+func sharedRateLimiter(ratePerSec, burst int) *rate.Limiter {
+	sharedLimiterOnce.Do(func() {
+		sharedLimiter = rate.NewLimiter(rate.Limit(ratePerSec), burst)
+	})
+	return sharedLimiter
+}
+
+func (c *Client) do(req *http.Request) (*http.Response, error) {
+	for attempt := 0; ; attempt++ {
+		if c.limiter != nil {
+			if err := c.limiter.Wait(req.Context()); err != nil {
+				return nil, err
+			}
+		}
+
+		if attempt > 0 && req.Body != nil && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, err
+			}
+			req.Body = body
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode != http.StatusServiceUnavailable {
+			return resp, nil
+		}
+
+		if attempt >= c.maxRetries {
+			return resp, nil
+		}
+
+		delay := retryAfterDelay(resp, attempt)
+		resp.Body.Close()
+
+		util.Logger.Debug(fmt.Sprintf("Graph throttled request (status %d), retrying in %s (attempt %d/%d)", resp.StatusCode, delay, attempt+1, c.maxRetries))
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-req.Context().Done():
+			timer.Stop()
+			return nil, req.Context().Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func retryAfterDelay(resp *http.Response, attempt int) time.Duration {
+	if v := strings.TrimSpace(resp.Header.Get("Retry-After")); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+
+	backoff := time.Duration(1<<uint(attempt)) * time.Second
+	if backoff > maxRetryBackoff {
+		backoff = maxRetryBackoff
+	}
+	return backoff
 }
 
 func (c *Client) RefreshAuth() error {
@@ -57,7 +147,7 @@ func (c *Client) getNewToken() (*util.RefreshAuthResponse, error) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +210,7 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 	urlQueryValues.Set("$filter", fmt.Sprintf("startswith(displayName,'%s')", prefix))
 	req.URL.RawQuery = urlQueryValues.Encode()
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +241,7 @@ func (c *Client) GetGroups(prefix string) (*GroupsListResponse, error) {
 			return nil, err
 		}
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +280,7 @@ func (c *Client) GetAdministrativeUnits() (*GetAdministrativeUnitsResponse, erro
 	urlQueryValues.Set("$filter", "startswith(displayName,'Team - Cloud Engineering')")
 	req.URL.RawQuery = urlQueryValues.Encode()
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +319,7 @@ func (c *Client) CreateAdministrativeUnitGroup(ctx context.Context, requestPaylo
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +353,7 @@ func (c *Client) DeleteAdministrativeUnitGroup(aUnitId string, groupId string) e
 		return err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return err
 	}
@@ -342,7 +432,7 @@ func (c *Client) AddGroupMember(groupId string, upn string) error {
 		return err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return err
 	}
@@ -380,7 +470,7 @@ func (c *Client) DeleteGroupMember(groupId string, memberId string) error {
 		return err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return err
 	}
@@ -415,7 +505,7 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +536,7 @@ func (c *Client) GetAdministrativeUnitMembers(id string) (*GetAdministrativeUnit
 			return nil, err
 		}
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -481,7 +571,7 @@ func (c *Client) GetUserViaUPN(upn string) (*GetUserViaUPNResponse, error) {
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +609,7 @@ func (c *Client) GetUserViaEmail(email string) (*GetUserViaUPNResponse, error) {
 
 	req.URL.RawQuery = urlQueries.Encode()
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -559,7 +649,7 @@ func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -571,11 +661,135 @@ func (c *Client) GetGroupMembers(id string) (*GroupMembers, error) {
 		return nil, err
 	}
 
+	if resp.StatusCode == http.StatusNotFound {
+		// A newly created group can briefly 404 here due to Graph replication lag
+		return nil, HttpError404.New(fmt.Sprintf("GetGroupMembers(%s): %s", id, strings.TrimSpace(string(rawData))))
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, unexpectedStatusError(fmt.Sprintf("GetGroupMembers(%s)", id), resp.StatusCode, rawData)
+	}
+
 	var payload *GroupMembers
 
 	err = json.Unmarshal(rawData, &payload)
 	if err != nil {
 		return nil, err
+	}
+
+	nextLink := payload.OdataNextLink
+
+	for nextLink != "" {
+		req, err := http.NewRequest("GET", nextLink, nil)
+		if err != nil {
+			return nil, err
+		}
+		err = c.prepareHttpRequest(req)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := c.do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		rawData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, unexpectedStatusError(fmt.Sprintf("GetGroupMembers(%s)", id), resp.StatusCode, rawData)
+		}
+
+		var buffer *GroupMembers
+
+		err = json.Unmarshal(rawData, &buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		nextLink = buffer.OdataNextLink
+
+		payload.Value = append(payload.Value, buffer.Value...)
+	}
+
+	return payload, nil
+}
+
+func (c *Client) GetUserDirectReports(ctx context.Context, userIdOrUPN string) (*GetDirectReportsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://graph.microsoft.com/v1.0/users/%s/directReports", url.PathEscape(userIdOrUPN)), nil)
+	if err != nil {
+		return nil, err
+	}
+	err = c.prepareHttpRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	urlQueryValues := req.URL.Query()
+	urlQueryValues.Set("$select", "id,displayName,userPrincipalName,mail,accountEnabled")
+	req.URL.RawQuery = urlQueryValues.Encode()
+
+	resp, err := c.do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	rawData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, unexpectedStatusError(fmt.Sprintf("GetUserDirectReports(%s)", userIdOrUPN), resp.StatusCode, rawData)
+	}
+
+	var payload *GetDirectReportsResponse
+
+	err = json.Unmarshal(rawData, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	nextLink := payload.OdataNextLink
+
+	for nextLink != "" {
+		req, err := http.NewRequestWithContext(ctx, "GET", nextLink, nil)
+		if err != nil {
+			return nil, err
+		}
+		err = c.prepareHttpRequest(req)
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := c.do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		rawData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, unexpectedStatusError(fmt.Sprintf("GetUserDirectReports(%s)", userIdOrUPN), resp.StatusCode, rawData)
+		}
+
+		var buffer *GetDirectReportsResponse
+
+		err = json.Unmarshal(rawData, &buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		nextLink = buffer.OdataNextLink
+
+		payload.Value = append(payload.Value, buffer.Value...)
 	}
 
 	return payload, nil
@@ -596,7 +810,7 @@ func (c *Client) GetApplicationRoles(appId string) (*GetApplicationRolesResponse
 	urlQueryValues.Set("$select", "displayName, appId, appRoles")
 	req.URL.RawQuery = urlQueryValues.Encode()
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -628,7 +842,7 @@ func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmen
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -659,7 +873,7 @@ func (c *Client) GetAssignmentsForApplication(appObjectId string) (*GetAssignmen
 			return nil, err
 		}
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -705,7 +919,7 @@ func (c *Client) AssignGroupToApplication(appObjectId string, groupId string, ro
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -741,7 +955,7 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 		return err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return nil
 	}
@@ -757,9 +971,24 @@ func (c *Client) UnassignGroupFromApplication(groupId string, assignmentId strin
 }
 
 func NewAzureClient(conf Config) *Client {
+	ratePerSec := conf.RateLimitPerSec
+	if ratePerSec <= 0 {
+		ratePerSec = defaultRateLimitPerSec
+	}
+	burst := conf.RateLimitBurst
+	if burst <= 0 {
+		burst = defaultRateLimitBurst
+	}
+	maxRetries := conf.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = defaultMaxRetries
+	}
+
 	payload := &Client{
 		httpClient: http.DefaultClient,
 		config:     conf,
+		limiter:    sharedRateLimiter(ratePerSec, burst),
+		maxRetries: maxRetries,
 	}
 
 	payload.tokenClient = util.NewTokenClient(payload.getNewToken)
