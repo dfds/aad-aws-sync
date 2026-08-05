@@ -167,6 +167,12 @@ func Capsvc2AadHandler(ctx context.Context) error {
 				default:
 				}
 
+				// Only sync members who have third-party access.
+				if !capMember.HasAccessToThirdParty {
+					util.Logger.Debug(fmt.Sprintf("Skipping member %s in capability %s: HasAccessToThirdParty is false", capMember.Email, capability.RootID), zap.String("jobName", CapabilityServiceToAzureAdName))
+					continue
+				}
+
 				// Prefer the UserID supplied by selfservice-api, which is the user's
 				// UPN and is authoritative even when it differs from their email.
 				upn := capMember.UserID

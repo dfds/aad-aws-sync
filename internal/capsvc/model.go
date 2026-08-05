@@ -33,15 +33,20 @@ type GetCapabilitiesResponseContextCapabilityMember struct {
 	Email string `json:"email"`
 	// UserID is the member's authoritative identifier from selfservice-api. For
 	// regular users this is their UPN, which can differ from their email address.
-	UserID string `json:"userId"`
+	UserID               string `json:"userId"`
+	HasAccessToThirdParty bool   `json:"hasAccessToThirdParty"`
 }
 
-// HasMember reports whether the capability contains a member matching value,
-// which may be either an email or a UPN. A user's UPN and email can differ, so
-// both the member's email and userId (UPN) are compared to avoid false negatives
-// that would wrongly flag an Azure AD member as stale and remove them.
+// HasMember reports whether the capability contains an active member matching
+// value, which may be either an email or a UPN. A user's UPN and email can
+// differ, so both fields are compared to avoid false negatives that would
+// wrongly flag an Azure AD member as stale and remove them. Members without
+// HasAccessToThirdParty are not considered active and will not match.
 func (g *GetCapabilitiesResponseContextCapability) HasMember(value string) bool {
 	for _, member := range g.Members {
+		if !member.HasAccessToThirdParty {
+			continue
+		}
 		if strings.EqualFold(member.Email, value) {
 			return true
 		}
