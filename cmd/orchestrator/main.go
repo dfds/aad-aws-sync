@@ -16,8 +16,8 @@ import (
 
 	"go.dfds.cloud/aad-aws-sync/internal/middleware"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/pprof"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/pprof"
 	_ "go.dfds.cloud/aad-aws-sync/cmd/orchestrator/docs"
 	"go.dfds.cloud/orchestrator"
 
@@ -209,10 +209,10 @@ func main() {
 
 	// Profiling endpoint
 	go func() {
-		app := fiber.New(fiber.Config{DisableStartupMessage: true})
+		app := fiber.New(fiber.Config{})
 		app.Use(pprof.New())
 
-		app.Listen(":8081")
+		app.Listen(":8081", fiber.ListenConfig{DisableStartupMessage: true})
 	}()
 
 	router := gin.Default()
