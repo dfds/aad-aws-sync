@@ -147,7 +147,7 @@ func (e UnmarshalError) Error() string { return string(e) }
 // UnmarshalXML must consume exactly one XML element.
 // One common implementation strategy is to unmarshal into
 // a separate value with a layout matching the expected XML
-// using d.DecodeElement,  and then to copy the data from
+// using d.DecodeElement, and then to copy the data from
 // that value into the receiver.
 // Another common strategy is to use d.Token to process the
 // XML object one token at a time.
@@ -262,9 +262,9 @@ func (p *Decoder) unmarshalAttr(val reflect.Value, attr Attr) error {
 }
 
 var (
-	unmarshalerType     = reflect.TypeOf((*Unmarshaler)(nil)).Elem()
-	unmarshalerAttrType = reflect.TypeOf((*UnmarshalerAttr)(nil)).Elem()
-	textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+	unmarshalerType     = reflect.TypeFor[Unmarshaler]()
+	unmarshalerAttrType = reflect.TypeFor[UnmarshalerAttr]()
+	textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 )
 
 // Unmarshal a single XML element into val.
@@ -359,10 +359,7 @@ func (p *Decoder) unmarshal(val reflect.Value, start *StartElement) error {
 		// Grow slice.
 		n := v.Len()
 		if n >= v.Cap() {
-			ncap := 2 * n
-			if ncap < 4 {
-				ncap = 4
-			}
+			ncap := max(2*n, 4)
 			new := reflect.MakeSlice(typ, n, ncap)
 			reflect.Copy(new, v)
 			v.Set(new)

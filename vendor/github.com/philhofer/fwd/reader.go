@@ -34,8 +34,10 @@
 package fwd
 
 import (
+	"errors"
 	"io"
 	"os"
+	"syscall"
 )
 
 const (
@@ -82,9 +84,10 @@ type Reader struct {
 	r io.Reader // underlying reader
 
 	// data[n:len(data)] is buffered data; data[len(data):cap(data)] is free buffer space
-	data  []byte // data
-	n     int    // read offset
-	state error  // last read error
+	data        []byte // data
+	n           int    // read offset
+	inputOffset int64  // offset in the input stream
+	state       error  // last read error
 
 	// if the reader past to NewReader was
 	// also an io.Seeker, this is non-nil
@@ -97,6 +100,7 @@ func (r *Reader) Reset(rd io.Reader) {
 	r.r = rd
 	r.data = r.data[0:0]
 	r.n = 0
+	r.inputOffset = 0
 	r.state = nil
 	if s, ok := rd.(io.Seeker); ok {
 		r.rs = s
@@ -124,14 +128,17 @@ func (r *Reader) more() {
 	if a == 0 && r.state == nil {
 		r.state = io.ErrNoProgress
 		return
-	} else if a > 0 && r.state == io.EOF {
-		// discard the io.EOF if we read more than 0 bytes.
-		// the next call to Read should return io.EOF again.
-		r.state = nil
-	} else if r.state != nil {
-		return
 	}
-	r.data = r.data[:len(r.data)+a]
+	// io.Reader requires the caller to process n > 0 before the error.
+	// A non-EOF error used to return here and drop those bytes.
+	if a > 0 {
+		r.data = r.data[:len(r.data)+a]
+		if r.state == io.EOF {
+			// discard the io.EOF if we read more than 0 bytes.
+			// the next call to Read should return io.EOF again.
+			r.state = nil
+		}
+	}
 }
 
 // pop error
@@ -157,6 +164,9 @@ func (r *Reader) Buffered() int { return len(r.data) - r.n }
 
 // BufferSize returns the total size of the buffer
 func (r *Reader) BufferSize() int { return cap(r.data) }
+
+// InputOffset returns the input stream byte offset of the current reader position
+func (r *Reader) InputOffset() int64 { return r.inputOffset }
 
 // Peek returns the next 'n' buffered bytes,
 // reading from the underlying reader if necessary.
@@ -191,16 +201,50 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 	return r.data[r.n : r.n+n], nil
 }
 
+func (r *Reader) PeekByte() (b byte, err error) {
+	if len(r.data)-r.n >= 1 {
+		b = r.data[r.n]
+	} else {
+		b, err = r.peekByte()
+	}
+	return
+}
+
+func (r *Reader) peekByte() (byte, error) {
+	const n = 1
+	if cap(r.data) < n {
+		old := r.data[r.n:]
+		r.data = make([]byte, n+r.buffered())
+		r.data = r.data[:copy(r.data, old)]
+		r.n = 0
+	}
+
+	// keep filling until
+	// we hit an error or
+	// read enough bytes
+	for r.buffered() < n && r.state == nil {
+		r.more()
+	}
+
+	// we must have hit an error
+	if r.buffered() < n {
+		return 0, r.err()
+	}
+	return r.data[r.n], nil
+}
+
 // discard(n) discards up to 'n' buffered bytes, and
 // and returns the number of bytes discarded
 func (r *Reader) discard(n int) int {
 	inbuf := r.buffered()
 	if inbuf <= n {
 		r.n = 0
+		r.inputOffset += int64(inbuf)
 		r.data = r.data[:0]
 		return inbuf
 	}
 	r.n += n
+	r.inputOffset += int64(n)
 	return n
 }
 
@@ -227,8 +271,18 @@ func (r *Reader) Skip(n int) (int, error) {
 
 	// if we can Seek() through the remaining bytes, do that
 	if n > skipped && r.rs != nil {
-		nn, err := r.rs.Seek(int64(n-skipped), 1)
-		return int(nn) + skipped, err
+		offs, err := r.rs.Seek(int64(n-skipped), io.SeekCurrent)
+		if err == nil {
+			r.inputOffset = offs
+			return n, nil
+		}
+		// if the io.Seeker is not actually usable,
+		// just swallow the error and don't try
+		// seeking again
+		if !errors.Is(err, syscall.ESPIPE) {
+			return skipped, err
+		}
+		r.rs = nil
 	}
 	// otherwise, keep filling the buffer
 	// and discarding it up to 'n'
@@ -248,7 +302,18 @@ func (r *Reader) Skip(n int) (int, error) {
 // If an the returned slice is less than the
 // length asked for, an error will be returned,
 // and the reader position will not be incremented.
-func (r *Reader) Next(n int) ([]byte, error) {
+func (r *Reader) Next(n int) (b []byte, err error) {
+	if r.state == nil && len(r.data)-r.n >= n {
+		b = r.data[r.n : r.n+n]
+		r.n += n
+		r.inputOffset += int64(n)
+	} else {
+		b, err = r.next(n)
+	}
+	return
+}
+
+func (r *Reader) next(n int) ([]byte, error) {
 	// in case the buffer is too small
 	if cap(r.data) < n {
 		old := r.data[r.n:]
@@ -267,6 +332,7 @@ func (r *Reader) Next(n int) ([]byte, error) {
 	}
 	out := r.data[r.n : r.n+n]
 	r.n += n
+	r.inputOffset += int64(n)
 	return out, nil
 }
 
@@ -277,7 +343,13 @@ func (r *Reader) Read(b []byte) (int, error) {
 	if r.buffered() != 0 {
 		x := copy(b, r.data[r.n:])
 		r.n += x
+		r.inputOffset += int64(x)
 		return x, nil
+	}
+	// The buffer was already returned. Surface the error from that read
+	// before asking the underlying reader again.
+	if r.state != nil {
+		return 0, r.err()
 	}
 	var n int
 	// we have no buffered data; determine
@@ -293,6 +365,9 @@ func (r *Reader) Read(b []byte) (int, error) {
 	if n == 0 {
 		return 0, r.err()
 	}
+
+	r.inputOffset += int64(n)
+
 	return n, nil
 }
 
@@ -307,17 +382,25 @@ func (r *Reader) ReadFull(b []byte) (int, error) {
 	// either read buffered data,
 	// or read directly for the underlying
 	// buffer, or fetch more buffered data.
-	for n < l && r.state == nil {
+	// Buffered bytes are copied even when the fill also returned an error.
+	for n < l {
 		if r.buffered() != 0 {
 			nn = copy(b[n:], r.data[r.n:])
 			n += nn
 			r.n += nn
-		} else if l-n > cap(r.data) {
+			r.inputOffset += int64(nn)
+			continue
+		}
+		if r.state != nil {
+			break
+		}
+		if l-n > cap(r.data) {
 			nn, r.state = r.r.Read(b[n:])
 			n += nn
-		} else {
-			r.more()
+			r.inputOffset += int64(nn)
+			continue
 		}
+		r.more()
 	}
 	if n < l {
 		return n, r.noEOF()
@@ -335,6 +418,8 @@ func (r *Reader) ReadByte() (byte, error) {
 	}
 	b := r.data[r.n]
 	r.n++
+	r.inputOffset++
+
 	return b, nil
 }
 
@@ -354,6 +439,7 @@ func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 		}
 		r.data = r.data[0:0]
 		r.n = 0
+		r.inputOffset += int64(ii)
 	}
 	for r.state == nil {
 		// here we just do
@@ -367,6 +453,7 @@ func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 			}
 			r.data = r.data[0:0]
 			r.n = 0
+			r.inputOffset += int64(ii)
 		}
 	}
 	if r.state != io.EOF {
